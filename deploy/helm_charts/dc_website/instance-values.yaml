@@ -5,6 +5,10 @@ website:
   flaskEnv: gps_dataverse
   secretGCPProjectID: gps-dataverse
 
+  image:
+    project: datcom-ci
+    tag: latest
+
 mixer:
   hostProject: gps-dataverse
   serviceName: dc-mixer-default

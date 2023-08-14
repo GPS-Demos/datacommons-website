@@ -15,7 +15,7 @@
 # Helm config
 
 
-project:
+project: gps-dataverse
 
 cluster_prefix: "datacommons"
 
@@ -26,7 +26,7 @@ website:
   image:
     project: "datcom-ci"
     tag:
-  flaskEnv: custom
+  flaskEnv: gps_dataverse
 
 mixer:
   useBaseBigtable: false

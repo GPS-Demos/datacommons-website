@@ -1,0 +1,21 @@
+website:
+  gcpProjectID: gps-dataverse
+  domain: gpsdataverse.com
+
+  flaskEnv: gps_dataverse
+  secretGCPProjectID: gps-dataverse
+
+mixer:
+  hostProject: gps-dataverse
+  serviceName: dc-mixer-default
+
+serviceAccount:
+  name: website-ksa
+
+ingress:
+  enabled: true
+  annotations:
+    {
+      kubernetes.io/ingress.global-static-ip-name: 34.117.30.234,
+      ingress.gcp.kubernetes.io/pre-shared-cert: dc-website-cert,
+    }

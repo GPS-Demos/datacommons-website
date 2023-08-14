@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-$dc-primary-color: #467bd5;
+$dc-primary-color: #4285F4;
 
 :root {
   --font-family: "Roboto", "Helvetica Neue", Arial, sans-serif !important;
   --breakpoint-xl: 1040px;
-  --dc-red-lite: #9a0000;
+  --dc-red-lite: #EB6B60;
   --dc-red-fade: #f0e6e7;
   --dc-gray: #3b3b3b;
   --dc-gray-lite: #ccc;
   --dc-white: #fff;
-  --dc-blue: #67adff;
-  --dc-error: #dc3545;
+  --dc-blue: #4285F4;
+  --dc-error: #DB4437;
   // Following vars are overwritten in custom dc modes
   --dc-primary: #{$dc-primary-color};
   --link-color: #{$dc-primary-color};

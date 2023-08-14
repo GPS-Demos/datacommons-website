@@ -1,0 +1,34 @@
+# Deployment
+https://docs.datacommons.org/custom_dc/setup_gcp.html
+
+## Build an image
+- Authenticate with Argolis and GCP project: `gps-dataverse`
+- Run the following:
+```bash
+export PROJECT=gps-dataverse
+export SERVICE=datacommons-website
+export TAG=latest
+export IMAGE=gcr.io/$PROJECT/$SERVICE:$TAG
+
+docker build -t $IMAGE -f build/web_server/Dockerfile .
+docker push $IMAGE
+```
+
+## Steps
+```bash
+git submodule foreach git pull origin master
+git submodule update --init --recursive
+
+helm upgrade --install \
+  dc-website deploy/helm_charts/dc_website \
+  --atomic \
+  --debug \
+  --timeout 10m \
+  -f deploy/helm_charts/dc_website/instance-values.yaml \
+  --set website.githash="$TAG" \
+  --set mixer.githash="$MIXER_TAG" \
+  --set-file mixer.schemaConfigs."base\.mcf"=mixer/deploy/mapping/base.mcf \
+  --set-file mixer.schemaConfigs."encode\.mcf"=mixer/deploy/mapping/encode.mcf \
+  --set-file kgStoreConfig.bigqueryVersion=mixer/deploy/storage/bigquery.version \
+  --set-file kgStoreConfig.baseBigtableInfo=mixer/deploy/storage/base_bigtable_info.yaml
+```

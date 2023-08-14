@@ -6,7 +6,7 @@ website:
   secretGCPProjectID: gps-dataverse
 
   image:
-    project: datcom-ci
+    project: gps-dataverse
     tag: latest
 
 mixer:

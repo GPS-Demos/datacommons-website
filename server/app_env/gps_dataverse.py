@@ -19,9 +19,11 @@ from server.app_env import local
 class Config(_base.Config):
   CUSTOM = True
   NAME = "GPS Dataverse"
+  ENV = "gps_dataverse"
   OVERRIDE_CSS_PATH = '/custom_dc/gps_dataverse/overrides.css'
   LOGO_PATH = "/custom_dc/gps_dataverse/logo.png"
   SHOW_DISASTER = False
+  SECRET_PROJECT = 'gps-dataverse'
 
 
 class LocalConfig(Config, local.Config):

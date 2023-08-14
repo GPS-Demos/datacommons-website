@@ -1,0 +1,115 @@
+{#
+ Copyright 2023 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+#}
+
+{%- extends BASE_HTML -%}
+
+{% set main_id = 'homepage' %}
+{% set page_id = 'page-homepage' %}
+
+{% block content %}
+  <section>
+
+
+    <div class="position-relative overflow-hidden p-3 p-md-5 text-center bg-dark text-white">
+      <div class="night">
+        <div class="star star-slow"></div>
+        <div class="star"></div>
+        <div class="star star-fast"></div>
+        <div class="star"></div>
+        <div class="star star-slow"></div>
+        <div class="star star-slow"></div>
+      </div>
+
+      <div class="col-md-5 p-lg-5 mx-auto my-5">
+        <h1 class="display-4 font-weight-normal">A Dataverse of possibilities.</h1>
+        <p class="lead font-weight-normal py-3">The Google Public Sector Dataverse project is designed to help public servants make better decisions for their constituents. By providing access to a wide range of data, the project can help public servants identify trends, solve problems, and improve services.</p>
+        <a class="btn btn-outline-light" href="{{ url_for('tools.map') }}">Get Started</a>
+      </div>
+      <div class="product-device box-shadow d-none d-md-block"></div>
+      <div class="product-device product-device-2 box-shadow d-none d-md-block"></div>
+    </div>
+
+    <div class="d-flex flex-column gap mx-auto" style="max-width: 1600px;">
+
+      <div class="row">
+        <div class="col-12 col-md-4 bg-primary py-3 px-3 py-md-5 px-md-5 text-center text-white overflow-hidden">
+          <div class="my-3 py-3">
+            <h2 class="display-5">Demographics</h2>
+            <p class="lead">See trends amongst your constituents. Consider mutliple viewpoints to improve inclusion and trust.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-8 d-flex align-items-center bg-white py-2 px-3 py-md-3 px-md-5 text-center overflow-hidden">
+          <a href="/tools/timeline#statsVar=GrowthRate_Count_Person&place=country%2FUSA">
+            <img class="w-100" src="/custom_dc/gps_dataverse/images/population-growth.png">
+          </a>
+        </div>
+      </div>
+
+      <div class="row flex-column-reverse flex-md-row">
+        <div class="col-12 col-md-8 d-flex align-items-center bg-white py-2 px-3 py-md-3 px-md-5 text-center overflow-hidden">
+          <a href="/tools/timeline#place=geoId%2F06&statsVar=WithdrawalRate_Water_Thermoelectric__WithdrawalRate_Water_PublicSupply__WithdrawalRate_Water_Irrigation__WithdrawalRate_Water_Aquaculture&chart=%7B%22withdrawalRate-none%22%3A%7B%22pc%22%3Afalse%7D%7D">
+            <img class="w-100" src="/custom_dc/gps_dataverse/images/ca-water-usage.png">
+          </a>
+        </div>
+        <div class="col-12 col-md-4 bg-dark py-3 px-3 py-md-5 px-md-5 text-center text-white overflow-hidden">
+          <div class="my-3 p-3">
+            <h2 class="display-5">Environment</h2>
+            <p class="lead">Our habitat is essential to maintain and key to a flourishing society. Gain insights into water and air quality, fire risk, and ecosystems.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-12 col-md-4 bg-primary py-3 px-3 py-md-5 px-md-5 text-center text-white overflow-hidden">
+          <div class="my-3 py-3">
+            <h2 class="display-5">Education</h2>
+            <p class="lead">Track graduation rates, teacher quality, and other important indicators. Identify areas where schools are struggling to develop programs and interventions to improve student outcomes.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-8 d-flex align-items-center bg-white py-2 px-3 py-md-3 px-md-5 text-center overflow-hidden">
+          <a href="/tools/scatter#%26svx%3DCount_Person_EducationalAttainmentRegularHighSchoolDiploma%26pcx%3D1%26dx%3DCount_Person%26svy%3DMedian_Income_Person%26pcy%3D1%26dy%3DCount_Person%26epd%3Dcountry%2FUSA%26ept%3DCounty%26lb%3D10000%26qd%3D1%26dd%3D1%26pp%3D">
+            <img class="w-100" src="/custom_dc/gps_dataverse/images/income-vs-high-school-diploma.png">
+          </a>
+        </div>
+      </div>
+
+      <div class="row flex-column-reverse flex-md-row">
+        <div class="col-12 col-md-8 d-flex align-items-center bg-white py-2 px-3 py-md-3 px-md-5 text-center overflow-hidden">
+          <a href="/tools/scatter#%26svx%3DPercent_Person_PhysicalInactivity%26lx%3D1%26pcx%3D1%26dx%3DCount_Person%26svy%3DPercent_Person_WithDiabetes%26ly%3D1%26pcy%3D1%26dy%3DCount_Person%26epd%3Dcountry%2FUSA%26ept%3DCounty%26ct%3D1%26pp%3D">
+            <img class="w-100" src="/custom_dc/gps_dataverse/images/diabetes-based-on-inatctivity.png">
+          </a>
+        </div>
+        <div class="col-12 col-md-4 bg-dark py-3 px-3 py-md-5 px-md-5 text-center text-white overflow-hidden">
+          <div class="my-3 py-3">
+            <h2 class="display-5">Health</h2>
+            <p class="lead">Understand health trends on a detailed level to understand how best to drive positive change.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+{% endblock %}
+
+<!-- http://localhost:8080/tools/scatter#%26svx%3DPercent_Person_SleepLessThan7Hours%26pcx%3D1%26dx%3DCount_Person%26svy%3DPercent_Person_WithDiabetes%26pcy%3D1%26dy%3DCount_Person%26epd%3Dcountry%2FUSA%26ept%3DCounty%26pp%3D -->
+
+<!-- Unemployment by State: http://localhost:8080/tools/map#%26sv%3DUnemploymentRate_Person%26pc%3D0%26denom%3DCount_Person%26pd%3Dcountry%2FUSA%26ept%3DState -->
+
+
+<!-- CA Water Usage: http://localhost:8080/tools/timeline#place=geoId%2F06&statsVar=WithdrawalRate_Water_Thermoelectric__WithdrawalRate_Water_PublicSupply__WithdrawalRate_Water_Irrigation__WithdrawalRate_Water_Aquaculture&chart=%7B%22withdrawalRate-none%22%3A%7B%22pc%22%3Afalse%7D%7D -->
+
+<!-- /tools/timeline#statsVar=GrowthRate_Count_Person&place=country%2FUSA&chart=%7B"count-none"%3A%7B"pc"%3Afalse%7D%7D -->

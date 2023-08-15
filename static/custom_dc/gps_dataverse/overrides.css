@@ -35,10 +35,6 @@ body {
   color: var(--dc-primary) !important;
 }
 
-.main-content {
-  margin: 0;
-}
-
 .btn.btn-primary {
   background-color: var(--dc-primary);
 }

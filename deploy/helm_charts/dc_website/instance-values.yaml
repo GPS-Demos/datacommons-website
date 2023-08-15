@@ -16,6 +16,9 @@ mixer:
 serviceAccount:
   name: website-ksa
 
+nl:
+  enabled: false
+
 ingress:
   enabled: true
   annotations:

@@ -24,8 +24,8 @@ namespace:
 
 website:
   image:
-    project: "datcom-ci"
-    tag:
+    project: "gps-dataverse"
+    tag: "latest"
   flaskEnv: gps_dataverse
 
 mixer:

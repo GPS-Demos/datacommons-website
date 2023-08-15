@@ -19,6 +19,13 @@ docker push $IMAGE
 git submodule foreach git pull origin master
 git submodule update --init --recursive
 
+TAG=$(git rev-parse --short=7 HEAD)
+# TAG=$(git rev-parse --short=7 --remotes=upstream HEAD | head -n 1)
+
+cd mixer
+MIXER_TAG=$(git rev-parse --short=7 HEAD)
+cd ..
+
 helm upgrade --install \
   dc-website deploy/helm_charts/dc_website \
   --atomic \

@@ -60,6 +60,28 @@ body {
 }
 
 /*Falling Stars*/
+.star-background {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 1px;
+  width: 1px;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: -48vw 17vh 1px 2px #fff,26vw -47vh 1px 3px #fff,-36vw -27vh 2px 2px #fff,-6vw 45vh 0px 1px #fff,-41vw -50vh 0px 0px #fff,-2vw -32vh 2px 0px #fff,-44vw 18vh 2px 3px #fff,5vw -3vh 1px 3px #fff,-42vw -47vh 1px 0px #fff,-46vw -40vh 0px 1px #fff,18vw 8vh 1px 3px #fff,-42vw -30vh 2px 0px #fff,-36vw -28vh 0px 0px #fff,48vw 26vh 1px 0px #fff,-40vw 35vh 0px 3px #fff,-48vw -41vh 2px 1px #fff,35vw 24vh 1px 0px #fff,-21vw 44vh 2px 3px #fff,11vw 27vh 2px 2px #fff,27vw -8vh 1px 1px #fff,24vw 6vh 3px 3px #fff,8vw -18vh 2px 1px #fff,42vw -8vh 0px 1px #fff,-35vw -44vh 3px 1px #fff,-47vw -2vh 2px 0px #fff,17vw -44vh 1px 1px #fff,-38vw 6vh 2px 1px #fff,-48vw -43vh 2px 3px #fff,4vw -46vh 0px 1px #fff,-7vw -46vh 1px 1px #fff,-47vw 14vh 3px 0px #fff,-47vw 5vh 0px 2px #fff,-45vw -16vh 3px 1px #fff,-36vw -10vh 1px 2px #fff,-23vw 28vh 3px 1px #fff,-46vw -44vh 2px 2px #fff,10vw 3vh 2px 3px #fff,-3vw 12vh 1px 2px #fff,-14vw -26vh 0px 0px #fff,-14vw -38vh 0px 1px #fff,-16vw 42vh 1px 1px #fff,23vw -3vh 2px 2px #fff,-7vw 24vh 1px 2px #fff,21vw -5vh 0px 1px #fff,29vw 19vh 3px 2px #fff,-43vw -35vh 0px 2px #fff,-44vw -12vh 3px 2px #fff,-20vw -9vh 0px 1px #fff,-36vw 1vh 3px 3px #fff,-38vw -46vh 3px 0px #fff,-42vw -13vh 3px 1px #fff,19vw -41vh 2px 3px #fff,-35vw 5vh 2px 0px #fff,-8vw 46vh 0px 1px #fff,20vw -41vh 1px 2px #fff,-20vw 0vh 2px 2px #fff,-15vw 25vh 3px 0px #fff,14vw 1vh 2px 1px #fff,25vw -12vh 2px 0px #fff,33vw -43vh 0px 1px #fff,-45vw -5vh 3px 0px #fff,-42vw 6vh 3px 0px #fff,21vw -48vh 1px 0px #fff,31vw -3vh 1px 1px #fff,38vw 3vh 3px 2px #fff,-16vw 26vh 3px 1px #fff,30vw 30vh 1px 1px #fff,35vw 30vh 3px 1px #fff,-3vw 47vh 0px 1px #fff,-42vw 17vh 1px 3px #fff,35vw 38vh 1px 3px #fff,13vw -21vh 3px 2px #fff,-19vw 50vh 0px 0px #fff,-3vw -47vh 3px 2px #fff,-11vw 34vh 1px 0px #fff,-24vw -14vh 3px 0px #fff,-26vw -15vh 3px 1px #fff,-35vw -34vh 2px 2px #fff,24vw -37vh 3px 0px #fff,20vw 35vh 3px 2px #fff,37vw 32vh 1px 2px #fff,-8vw -30vh 2px 2px #fff,16vw 15vh 3px 0px #fff,-9vw -30vh 2px 2px #fff,-42vw 31vh 0px 1px #fff,14vw -47vh 2px 3px #fff,38vw -2vh 3px 2px #fff,-27vw 42vh 2px 3px #fff,-40vw -37vh 1px 2px #fff,-20vw -25vh 3px 2px #fff,1vw 29vh 0px 2px #fff,35vw 31vh 0px 1px #fff,31vw 19vh 1px 3px #fff,-26vw 11vh 2px 2px #fff,-14vw 29vh 3px 0px #fff,50vw -36vh 2px 3px #fff,-38vw -46vh 2px 0px #fff,1vw -42vh 1px 3px #fff,24vw -33vh 2px 2px #fff,5vw -31vh 3px 2px #fff;
+  animation: zoom 20s alternate infinite;
+  z-index: 10;
+}
+
+@keyframes zoom {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.2);
+  }
+}
+
 .night {
   position: absolute; /* position: relative; */
   overflow: hidden;
@@ -78,7 +100,7 @@ body {
   background: linear-gradient(-45deg, #e5edfd, rgba(0, 0, 255, 0));
   border-radius: 999px;
   filter: drop-shadow(0 0 6px #d3e2ff);
-  animation: tail 3s ease-in-out infinite, falling 3s ease-in-out infinite;
+  animation: tail 15s ease-in-out infinite, falling 15s ease-in-out infinite;
 }
 
 .star::before,
@@ -96,35 +118,35 @@ body {
   );
   border-radius: 100%;
   transform: translateX(50%) rotateZ(45deg);
-  animation: shining 3s ease-in-out infinite;
+  animation: shining 15s ease-in-out infinite;
 }
 
 .star.star-fast {
-  animation: tail 2.2s ease-in-out infinite, falling 2.2s ease-in-out infinite;
+  animation: tail 11s ease-in-out infinite, falling 11s ease-in-out infinite;
 }
 
 .star.star-fast::before,
 .star.star-fast::after {
-  animation: shining 2.2s ease-in-out infinite;
+  animation: shining 11s ease-in-out infinite;
 }
 
 .star.star-slow {
-  animation: tail 4.7s ease-in-out infinite, falling 4.7s ease-in-out infinite;
+  animation: tail 23.5s ease-in-out infinite, falling 23.5s ease-in-out infinite;
 }
 
 .star.star-slow::before,
 .star.star-slow::after {
-  animation: shining 4.7s ease-in-out infinite;
+  animation: shining 23.5s ease-in-out infinite;
 }
 
 @keyframes tail {
   0% {
     height: 0;
   }
-  10% {
+  2% {
     height: 100px;
   }
-  40% {
+  8% {
     height: 0;
   }
   100% {
@@ -136,7 +158,7 @@ body {
   0% {
     transform: translateY(0);
   }
-  40% {
+  8% {
     transform: translateY(300px);
   }
   100% {
@@ -148,10 +170,10 @@ body {
   0% {
     width: 0;
   }
-  10% {
+  2% {
     width: 30px;
   }
-  40% {
+  8% {
     width: 0;
   }
   100% {
@@ -166,65 +188,65 @@ body {
 .star:nth-child(1) {
   top: calc(50%);
   left: calc(50% - 650px);
-  animation-delay: 1s;
+  animation-delay: 2s;
 }
 
 .star:nth-child(1)::before,
 .star:nth-child(1)::after {
-  animation-delay: 1s;
+  animation-delay: 2s;
 }
 
 .star:nth-child(2) {
   top: calc(50% - 300px);
   left: calc(50% + 400px);
-  animation-delay: 3s;
+  animation-delay: 15s;
 }
 
 .star:nth-child(2)::before,
 .star:nth-child(2)::after {
-  animation-delay: 3s;
+  animation-delay: 15s;
 }
 
 .star:nth-child(3) {
   top: calc(50% - 180px);
   left: calc(50% - 150px);
-  animation-delay: 2s;
+  animation-delay: 4;
 }
 
 .star:nth-child(3)::before,
 .star:nth-child(3)::after {
-  animation-delay: 2s;
+  animation-delay: 4;
 }
 
 .star:nth-child(4) {
   top: calc(50% - 50px);
   left: calc(50% - 420px);
-  animation-delay: 5s;
+  animation-delay: 8s;
 }
 
 .star:nth-child(4)::before,
 .star:nth-child(4)::after {
-  animation-delay: 5s;
+  animation-delay: 8s;
 }
 
 .star:nth-child(5) {
   top: calc(50% - 400px);
   left: calc(50% + 80px);
-  animation-delay: 4s;
+  animation-delay: 10s;
 }
 
 .star:nth-child(5)::before,
 .star:nth-child(5)::after {
-  animation-delay: 4s;
+  animation-delay: 10s;
 }
 
 .star:nth-child(6) {
   top: calc(50% - 150px);
   left: calc(50% + 100px);
-  animation-delay: 3.7s;
+  animation-delay: 12s;
 }
 
 .star:nth-child(6)::before,
 .star:nth-child(6)::after {
-  animation-delay: 3.7s;
+  animation-delay: 12s;
 }

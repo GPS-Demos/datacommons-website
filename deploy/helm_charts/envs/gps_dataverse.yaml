@@ -52,7 +52,7 @@ serviceGroups:
       memoryRequest: "8G"
       memoryLimit: "8G"
 nl:
-  enabled: true
+  enabled: false
 
 kgStoreConfig:
   customBigtableInfo: |

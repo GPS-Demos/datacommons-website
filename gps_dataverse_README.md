@@ -14,7 +14,25 @@ docker build -t $IMAGE -f build/web_server/Dockerfile .
 docker push $IMAGE
 ```
 
-## Steps
+## Deploy
+- `git clone` the repo in a Cloud Shell instance in `gps-dataverse` project
+- `cd` into the repo
+- Run the following:
+```bash
+git pull origin
+sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+sudo chmod +x /usr/bin/yq
+
+./scripts/deploy_gke_helm.sh -e gps_dataverse
+```
+
+### Deployment Config Changes
+Any changes can be done in `./deploy/helm_charts/envs/gps_dataverse.yaml`
+
+
+# Appendix
+## Helm Chart
+### Steps
 ```bash
 git submodule foreach git pull origin master
 git submodule update --init --recursive

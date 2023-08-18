@@ -76,6 +76,9 @@
           <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">
             <ul class="navbar-nav float-md-right">
                 <li class="nav-item dropdown">
+                    <a href="/nl" id="nav-genai" class="nav-link-main "><span>Ask GenAI</span></a>
+                </li>
+                <li class="nav-item dropdown">
                     <a href="{{ url_for('tools.timeline') }}" id="nav-timeline" class="nav-link-main "><span>Timeline</span></a>
                 </li>
                 <li class="nav-item dropdown">
@@ -85,13 +88,13 @@
                     <a href="{{ url_for('tools.map') }}" id="nav-map" class="nav-link-main "><span>Map</span></a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.download') }}" id="nav-map" class="nav-link-main "><span>Download</span></a>
+                    <a href="{{ url_for('tools.download') }}" id="nav-download" class="nav-link-main "><span>Download</span></a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.stat_var') }}" id="nav-map" class="nav-link-main "><span>Variables</span></a>
+                    <a href="{{ url_for('tools.stat_var') }}" id="nav-vars" class="nav-link-main "><span>Variables</span></a>
                 </li>
                 <li id="navbar-search-icon">
-                  <a href="/search">
+                  <a href="/search" id="nav-search">
                     <img src="/custom_dc/gps_dataverse/images/icon-search-navbar.svg">
                   </a>
                 </li>

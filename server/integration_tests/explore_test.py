@@ -26,17 +26,19 @@ _TEST_MODE = os.environ['TEST_MODE']
 _TEST_DATA = 'test_data'
 
 
-class IntegrationTest(NLWebServerTestCase):
+class ExploreTest(NLWebServerTestCase):
 
-  def run_fulfillment(self, test_dir, req_json, failure=''):
-    resp = requests.post(self.get_server_url() + '/api/explore/fulfill',
+  def run_fulfillment(self, test_dir, req_json, failure='', test=''):
+    resp = requests.post(self.get_server_url() +
+                         f'/api/explore/fulfill?test={test}',
                          json=req_json).json()
     self.handle_response(json.dumps(req_json), resp, test_dir, '', failure)
 
-  def run_detection(self, test_dir, queries, dc='', failure=''):
+  def run_detection(self, test_dir, queries, dc='', failure='', test=''):
     ctx = {}
     for q in queries:
-      resp = requests.post(self.get_server_url() + f'/api/explore/detect?q={q}',
+      resp = requests.post(self.get_server_url() +
+                           f'/api/explore/detect?q={q}&test={test}',
                            json={
                                'contextHistory': ctx,
                                'dc': dc,
@@ -47,6 +49,28 @@ class IntegrationTest(NLWebServerTestCase):
       else:
         d = q.replace(' ', '').replace('?', '').lower()
       self.handle_response(q, resp, test_dir, d, failure)
+
+  def run_detect_and_fulfill(self,
+                             test_dir,
+                             queries,
+                             dc='',
+                             failure='',
+                             test=''):
+    ctx = {}
+    for q in queries:
+      resp = requests.post(self.get_server_url() +
+                           f'/api/explore/detect-and-fulfill?q={q}&test={test}',
+                           json={
+                               'contextHistory': ctx,
+                               'dc': dc,
+                           }).json()
+      ctx = resp['context']
+      if len(queries) == 1:
+        d = ''
+      else:
+        d = q.replace(' ', '').replace('?', '').lower()
+      print(resp)
+      self.handle_response(d, resp, test_dir, d, failure)
 
   def handle_response(self,
                       query,
@@ -110,7 +134,8 @@ class IntegrationTest(NLWebServerTestCase):
           self.assertEqual(dbg["main_place_name"], expected["main_place_name"])
 
   def test_detection_basic(self):
-    self.run_detection('detection_api_basic', ['Commute in California'])
+    self.run_detection('detection_api_basic', ['Commute in California'],
+                       test='unittest')
 
   def test_detection_sdg(self):
     self.run_detection('detection_api_sdg', ['Health in USA'], dc='sdg')
@@ -133,26 +158,18 @@ class IntegrationTest(NLWebServerTestCase):
     req = {
         'entities': ['geoId/06085'],
         'variables': ['dc/topic/WorkCommute'],
-        'dc': ''
+        'dc': '',
+        'disableExploreMore': '1',
     }
-    self.run_fulfillment('fulfillment_api_basic', req)
+    self.run_fulfillment('fulfillment_api_basic', req, test='unittest')
 
   def test_fulfillment_explore_more(self):
     req = {
         'entities': ['geoId/06085'],
         'variables': ['dc/topic/DivorcedPopulationByDemographic'],
         'dc': '',
-        'exploreMore': '1',
     }
     self.run_fulfillment('fulfillment_api_explore_more', req)
-
-  def test_fulfillment_expansion(self):
-    req = {
-        'entities': ['country/BRA'],
-        'variables': ['dc/topic/GlobalEconomicActivity'],
-        'dc': ''
-    }
-    self.run_fulfillment('fulfillment_api_expansion', req)
 
   def test_fulfillment_sdg(self):
     req = {
@@ -161,6 +178,38 @@ class IntegrationTest(NLWebServerTestCase):
         'dc': 'sdg'
     }
     self.run_fulfillment('fulfillment_api_sdg', req)
+
+  def test_fulfillment_sdg_global(self):
+    req = {
+        'entities': ['Earth'],
+        'variables': ['dc/topic/sdg_2.2.1'],
+        'dc': 'sdg'
+    }
+    self.run_fulfillment('fulfillment_api_sdg_global', req)
+
+  def test_fulfillment_sdg_global(self):
+    req = {
+        'entities': ['CentralAsia'],
+        'variables': ['dc/topic/sdg_2.2.1'],
+        'dc': 'sdg'
+    }
+    self.run_fulfillment('fulfillment_api_sdg_centralasia', req)
+
+  def test_fulfillment_sdg_specialvars(self):
+    req = {
+        'entities': ['country/USA'],
+        'variables': ['dc/topic/sdg_17.19.2'],
+        'dc': 'sdg'
+    }
+    self.run_fulfillment('fulfillment_api_sdg_specialvars', req)
+
+  def test_fulfillment_sdg_global_specialvars(self):
+    req = {
+        'entities': ['Earth'],
+        'variables': ['dc/topic/sdg_17.19.2'],
+        'dc': 'sdg'
+    }
+    self.run_fulfillment('fulfillment_api_sdg_global_specialvars', req)
 
   def test_fulfillment_comparison(self):
     req = {
@@ -193,3 +242,107 @@ class IntegrationTest(NLWebServerTestCase):
         'entities': ['geoId/06']
     }
     self.run_fulfillment('fulfillment_api_statvars', req)
+
+  def test_fulfillment_nl_size(self):
+    # How big are schools in Redwood city
+    # -> this query returns 3 ranking tables, not supported
+    #    on old Explore backend.
+    req = {
+        "entities": ["geoId/0660102"],
+        "variables": ["dc/topic/Schools", "Count_Person_EnrolledInSchool"],
+        'childEntityType':
+            'PublicSchool',
+        "comparisonVariables": [],
+        "classifications": [
+            {
+                "contained_in_place_type": "PublicSchool",
+                "type": 4
+            },
+            {
+                "superlatives": [1],
+                "type": 11
+            },
+        ],
+    }
+    self.run_fulfillment('fulfillment_api_nl_size', req)
+
+  def test_e2e_answer_places(self):
+    self.run_detect_and_fulfill('e2e_answer_places', [
+        'California counties with the highest asthma levels',
+        'What is the obesity rate in these counties?',
+        'How about the uninsured population?',
+        'Which counties in california have median age over 40?',
+        'What is the emissions in these counties?'
+    ])
+
+  def test_e2e_electrification_demo(self):
+    self.run_detect_and_fulfill('e2e_electrification_demo', [
+        'Which countries in Africa have had the greatest increase in electricity access?',
+        'How has poverty reduced in these places?',
+        'How has the GDP grown?',
+        'What is the greenhouse gas emissions from these places?',
+        'How do these countries compare with the US and Germany?',
+    ])
+
+  def test_e2e_india_demo(self):
+    self.run_detect_and_fulfill('e2e_india_demo', [
+        'Which states in India have the highest poverty levels per capita?',
+        'How much has infant mortality changed over time in these states?',
+        'How does the literacy rate compare?',
+        'How does literacy rate compare to poverty in India?',
+    ])
+
+  def test_e2e_us_demo(self):
+    self.run_detect_and_fulfill('e2e_us_demo', [
+        'Which counties in the US have the highest levels of diabetes?',
+        'What is the demographic breakdown of East Carroll Parish, LA?',
+        'What is the median household income in East Carroll Parish, LA?',
+        'How does household income compare with rates of diabetes in USA counties?',
+        'How do obesity rates compare with rates of diabetes in USA counties?',
+    ])
+
+  def test_e2e_edge_cases(self):
+    self.run_detect_and_fulfill('e2e_edge_cases', [
+        'emissions in Houston', 'poverty in California and California',
+        'poverty vs. poverty in California',
+        'number of headless drivers in california',
+        'immunization vs. debt in the world', 'debt in china, germany and india'
+    ])
+
+  def test_e2e_edge_cases2(self):
+    self.run_detect_and_fulfill('e2e_edge_cases2', [
+        'What crimes are considered felonies vs. misdemeanors in the US',
+        'How does school size of urban schools compare to rural schools in US',
+        'What is the relationship between housing size and home prices in California',
+    ])
+
+  def test_e2e_superlatives(self):
+    self.run_detect_and_fulfill('e2e_superlatives', [
+        'Richest counties in california',
+        'List schools in Sunnyvale',
+    ],
+                                test='unittest')
+
+  def test_e2e_sdg(self):
+    self.run_detect_and_fulfill('e2e_sdg', [
+        'Hunger in Nigeria',
+        'Compare progress on poverty in Mexico, Nigeria and Pakistan'
+    ],
+                                dc='sdg')
+
+  def test_e2e_fallbacks(self):
+    self.run_detect_and_fulfill(
+        'e2e_fallbacks',
+        [
+            # There is NO county-level data at all, so this
+            # should fallback to US states.
+            'Life expectancy in US counties',
+            # There is county-level data further down in the
+            # chart list, so it should also fallback to states.
+            'Tamil speakers in US counties',
+            # This should fallback from tract to city.
+            'auto thefts in tracts of sunnyvale',
+            # This should fallback from child-type (tract)
+            # to the place (SC county) to its state (CA).
+            'auto thefts in tracts of santa clara county'
+        ])

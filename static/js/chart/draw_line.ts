@@ -28,11 +28,12 @@ import { Boundary } from "../shared/types";
 import { DataGroup, getColorFn, PlotParams, shouldFillInValues } from "./base";
 import {
   LEGEND,
+  LEGEND_HIGHLIGHT_CLASS,
   MARGIN,
+  NUM_X_TICKS,
   NUM_Y_TICKS,
   SVGNS,
   TEXT_FONT_FAMILY,
-  TOOLTIP_ID,
   XLINKNS,
 } from "./draw_constants";
 import {
@@ -42,8 +43,8 @@ import {
   appendLegendElem,
   buildInChartLegend,
   computeRanges,
+  getLegendKeyFn,
   getRowLabels,
-  showTooltip,
   updateXAxis,
 } from "./draw_utils";
 import { GroupLineChartOptions, LineChartOptions } from "./types";
@@ -59,6 +60,8 @@ const YLABEL = {
   topMargin: 10,
   height: 15,
 };
+// min distance between bottom of the tooltip and a datapoint
+const TOOLTIP_BOTTOM_OFFSET = 5;
 
 /**
  * Gets the html content of a tooltip
@@ -105,6 +108,43 @@ function getTooltipContent(
   } else {
     return `${tooltipDate}<br/>` + tooltipContent;
   }
+}
+
+/**
+ * Position and show the tooltip.
+ *
+ * @param contentHTML innerHTML of the tooltip as a string.
+ * @param tooltipDiv div containing the tooltip.
+ * @param datapointX x coordinate of the datapoint that the tooltip is being shown for.
+ * @param datapointY y coordinate of the datapoint that the tooltip is being shown for.
+ * @param relativeBoundary tooltip boundary relative to its container element.
+ */
+export function showTooltip(
+  contentHTML: string,
+  tooltipDiv: d3.Selection<HTMLDivElement, any, any, any>,
+  datapointX: number,
+  datapointY: number,
+  relativeBoundary: Boundary
+): void {
+  const rect = (tooltipDiv.node() as HTMLDivElement).getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  // center tooltip over the datapoint. If this causes the tooltip to overflow the boundary,
+  // place the tooltip against the respective boundary.
+  let left = datapointX - width / 2;
+  if (left < relativeBoundary.left) {
+    left = relativeBoundary.left;
+  } else if (left + width > relativeBoundary.right) {
+    left = relativeBoundary.right - width;
+  }
+  // place the tooltip against the top of the chart area unless there is too little space between it
+  // and the datapoint, then place the tooltip against the bottom of the chart area
+  let top = 0;
+  if (height > datapointY - TOOLTIP_BOTTOM_OFFSET) {
+    top = relativeBoundary.bottom - height;
+  }
+  tooltipDiv.html(contentHTML);
+  tooltipDiv.style("left", left + "px").style("top", top + "px");
 }
 
 /**
@@ -160,7 +200,7 @@ function addHighlightOnHover(
 ): void {
   const listOfTimePoints: number[] = Array.from(setOfTimePoints);
   listOfTimePoints.sort((a, b) => a - b);
-  addTooltip(container);
+  const tooltip = addTooltip(container);
   for (const place in dataGroupsDict) {
     const dataGroups = dataGroupsDict[place];
     for (const dataGroup of dataGroups) {
@@ -172,7 +212,6 @@ function addHighlightOnHover(
         .datum(dataGroup);
     }
   }
-  const tooltip = container.select(`#${TOOLTIP_ID}`);
   highlightArea.style("opacity", "0");
   const highlightLine = highlightArea
     .append("line")
@@ -245,12 +284,36 @@ function addHighlightOnHover(
       );
       showTooltip(
         tooltipContent,
-        container,
+        tooltip,
         dataPointX,
         minDataPointY,
         chartAreaBoundary
       );
     });
+}
+
+/**
+ * Get the d3 time interval that corresponds with the time scale to use for
+ * x-axis labels. Returns undefined if no setting is provided.
+ * @param setting time setting set by user
+ */
+function getTickFormatFn(
+  timeScale: string
+): (date: Date) => string | undefined {
+  if (!timeScale) {
+    return;
+  }
+
+  switch (timeScale.toLowerCase()) {
+    case "year":
+      return d3.timeFormat("%Y");
+    case "month":
+      return d3.timeFormat("%Y-%m");
+    case "day":
+      return d3.timeFormat("%Y-%m-%d");
+    default:
+      return;
+  }
 }
 
 /**
@@ -286,8 +349,10 @@ export function drawLineChart(
   if (maxV == 0) {
     maxV = MAX_Y_FOR_ZERO_CHARTS;
   }
-  const svg = d3
-    .select(svgContainer)
+  // wrapper div for chart area, used as bounds for tooltip
+  const svgWrapper = d3.select(svgContainer).append("div");
+  // create svg
+  const svg = svgWrapper
     .append("svg")
     .attr("xmlns", SVGNS)
     .attr("xmlns:xlink", XLINKNS)
@@ -326,6 +391,18 @@ export function drawLineChart(
   if (dataGroups[0].value.length === 1) {
     singlePointLabel = dataGroups[0].value[0].label;
   }
+
+  const tickFormatFn = getTickFormatFn(options?.timeScale);
+
+  // If using a custom timescale setting and there are fewer points than
+  // NUM_X_TICKS, only use one tick-mark per point. This prevents duplicate
+  // dates showing up on the x-axis.
+  const numPointsInLongestLine = Math.max(
+    ...dataGroups.map((dataGroup) => dataGroup.value.length)
+  );
+  const numPointsToShow =
+    options?.timeScale && Math.min(numPointsInLongestLine, NUM_X_TICKS);
+
   const bottomHeight = addXAxis(
     xAxis,
     height,
@@ -333,13 +410,16 @@ export function drawLineChart(
     null,
     null,
     singlePointLabel,
-    options?.apiRoot
+    options?.apiRoot,
+    tickFormatFn,
+    numPointsToShow
   );
   updateXAxis(xAxis, bottomHeight, height, yScale);
 
   const legendText = dataGroups.map((dataGroup) =>
     dataGroup.label ? dataGroup.label : "A"
   );
+  const legendKeyFn = getLegendKeyFn(legendText);
   const colorFn = getColorFn(legendText, options?.colors);
 
   let hasFilledInValues = false;
@@ -381,7 +461,10 @@ export function drawLineChart(
     chart
       .append("path")
       .datum(dataset)
-      .attr("class", "line")
+      .attr(
+        "class",
+        `line ${LEGEND_HIGHLIGHT_CLASS} ${legendKeyFn(dataGroup.label)}`
+      )
       .attr("d", line)
       .attr("part", (d) =>
         ["series", `series-variable-${dataGroup.label}`].join(" ")
@@ -397,7 +480,10 @@ export function drawLineChart(
         .data(dataGroup.value)
         .enter()
         .append("circle")
-        .attr("class", "dot")
+        .attr(
+          "class",
+          `dot ${LEGEND_HIGHLIGHT_CLASS} ${legendKeyFn(dataGroup.label)}`
+        )
         .attr("cx", (d) => xScale(d.time))
         .attr("cy", (d) => yScale(d.value))
         .attr("part", (d) =>
@@ -420,8 +506,6 @@ export function drawLineChart(
       top: 0,
     };
     const dataGroupsDict = { [DATAGROUP_UNKNOWN_PLACE]: dataGroups };
-    const container: d3.Selection<HTMLDivElement, any, any, any> =
-      d3.select(svgContainer);
     const highlightColorFn = (_: string, dataGroup: DataGroup) => {
       return colorFn(dataGroup.label);
     };
@@ -429,7 +513,7 @@ export function drawLineChart(
     addHighlightOnHover(
       xScale,
       yScale,
-      container,
+      svgWrapper,
       dataGroupsDict,
       highlightColorFn,
       timePoints,
@@ -445,6 +529,7 @@ export function drawLineChart(
     dataGroups.map((dg) => ({
       label: dg.label,
       link: dg.link,
+      index: legendKeyFn(dg.label),
     })),
     options?.apiRoot
   );

@@ -28,10 +28,12 @@ export interface BarComponentProps
   barHeight?: number;
   childPlaceType?: string;
   colors?: string[];
+  footnote?: string;
   header: string;
   horizontal?: boolean;
   lollipop?: boolean;
   maxPlaces?: number;
+  maxVariables?: number;
   parentPlace?: string;
   places?: string[];
   sort?: SortType;
@@ -48,6 +50,7 @@ export interface GaugeComponentProps
   > {
   apiRoot?: string;
   colors?: string[];
+  footnote?: string;
   header: string;
   max: number;
   min: number;
@@ -77,6 +80,7 @@ export interface LineComponentProps
   apiRoot?: string;
   childPlaceType?: string;
   colors?: string[];
+  footnote?: string;
   header: string;
   place?: string;
   places?: string[];
@@ -94,6 +98,7 @@ export interface MapComponentProps
   colors?: string[];
   date?: string;
   enclosedPlaceType?: string;
+  footnote?: string;
   header: string;
   parentPlace?: string;
   place?: string;
@@ -112,6 +117,7 @@ export interface PieComponentProps
   apiRoot?: string;
   colors?: string[];
   donut?: boolean;
+  footnote?: string;
   header: string;
   place: string;
   title?: string;
@@ -141,4 +147,15 @@ export interface SliderComponentProps
   min: number;
   publish: string;
   value: number;
+}
+
+export interface TextComponentProps
+  extends React.DetailedHTMLProps<
+    React.HTMLAttributes<HTMLElement>,
+    HTMLElement
+  > {
+  characterLimit?: number;
+  heading: string;
+  text: string;
+  showFullText?: boolean;
 }

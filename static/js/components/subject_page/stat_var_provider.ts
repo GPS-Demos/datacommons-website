@@ -21,9 +21,6 @@ import { StatVarSpecMap } from "../../types/subject_page_proto_types";
 // Provider for stat var spec in a category.
 // TODO: move data fetching from individual tiles here.
 
-const PER_CAPITA_SCALING = 100;
-const PER_CAPITA_UNIT = "%";
-
 export class StatVarProvider {
   _statVarSpecMap: StatVarSpecMap;
 
@@ -38,10 +35,8 @@ export class StatVarProvider {
       return null;
     }
     const spec = _.cloneDeep(this._statVarSpecMap[key]);
-    if (blockDenom) {
+    if (blockDenom && !spec.noPerCapita) {
       spec.denom = blockDenom;
-      spec.scaling = PER_CAPITA_SCALING;
-      spec.unit = PER_CAPITA_UNIT;
     }
     return spec;
   }

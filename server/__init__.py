@@ -37,6 +37,7 @@ import server.lib.config as libconfig
 from server.lib.disaster_dashboard import get_disaster_dashboard_data
 import server.lib.i18n as i18n
 from server.lib.nl.common import bad_words
+from server.lib.nl.detection import llm_prompt
 import server.lib.util as libutil
 import server.services.bigtable as bt
 from server.services.discovery import configure_endpoints_from_ingress
@@ -45,6 +46,8 @@ from server.services.discovery import get_health_check_urls
 propagator = google_cloud_format.GoogleCloudFormatPropagator()
 
 BLOCKLIST_SVG_FILE = "/datacommons/svg/blocklist_svg.json"
+
+DEFAULT_NL_ROOT = "http://127.0.0.1:6060"
 
 
 def createMiddleWare(app, exporter):
@@ -243,12 +246,13 @@ def register_routes_common(app):
   app.register_blueprint(oembed.bp)
 
 
-def create_app():
+def create_app(nl_root=DEFAULT_NL_ROOT):
   app = Flask(__name__, static_folder='dist', static_url_path='')
 
   # Setup flask config
   cfg = libconfig.get_config()
   app.config.from_object(cfg)
+  app.config['NL_ROOT'] = nl_root
 
   # Init extentions
   from server.cache import cache
@@ -375,7 +379,7 @@ def create_app():
 
     # Get the API key from environment first.
     if cfg.USE_PALM:
-      app.config['PALM_PROMPT_TEXT'] = libutil.get_llm_prompt_text()
+      app.config['PALM_PROMPT_TEXT'] = llm_prompt.get_prompts()
       if os.environ.get('PALM_API_KEY'):
         app.config['PALM_API_KEY'] = os.environ.get('PALM_API_KEY')
       else:
@@ -390,6 +394,8 @@ def create_app():
     app.config['NL_CHART_TITLES'] = libutil.get_nl_chart_titles()
     app.config['TOPIC_CACHE'] = topic_cache.load(app.config['NL_CHART_TITLES'])
     app.config['SDG_PERCENT_VARS'] = libutil.get_sdg_percent_vars()
+    app.config[
+        'SDG_NON_COUNTRY_ONLY_VARS'] = libutil.get_sdg_non_country_only_vars()
 
   # Get and save the list of variables that we should not allow per capita for.
   app.config['NOPC_VARS'] = libutil.get_nl_no_percapita_vars()
@@ -414,6 +420,7 @@ def create_app():
     g.locale = g.locale_choices[0]
     # Add commonly used config flags.
     g.env = app.config.get('ENV', None)
+    g.custom = app.config.get('CUSTOM', False)
 
     scheme = request.headers.get('X-Forwarded-Proto')
     if scheme and scheme == 'http' and request.url.startswith('http://'):
@@ -449,11 +456,13 @@ def create_app():
   app.jinja_env.globals['OVERRIDE_CSS_PATH'] = app.config['OVERRIDE_CSS_PATH']
   app.secret_key = os.urandom(24)
 
-  custom_path = os.path.join('custom_dc', cfg.ENV, 'base.html')
-  if os.path.exists(os.path.join(app.root_path, 'templates', custom_path)):
-    app.jinja_env.globals['BASE_HTML'] = custom_path
-  else:
-    app.jinja_env.globals['BASE_HTML'] = 'base.html'
-
+  app.jinja_env.globals['BASE_HTML'] = 'base.html'
+  if cfg.CUSTOM:
+    custom_path = os.path.join('custom_dc', cfg.ENV, 'base.html')
+    if os.path.exists(os.path.join(app.root_path, 'templates', custom_path)):
+      app.jinja_env.globals['BASE_HTML'] = custom_path
+    else:
+      app.jinja_env.globals['BASE_HTML'] = os.path.join('custom_dc/custom',
+                                                        'base.html')
   flask_cors.CORS(app)
   return app

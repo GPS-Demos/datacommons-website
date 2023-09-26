@@ -15,8 +15,21 @@
                     "type": "LINE"
                   }
                 ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Prevalence of Obesity in California",
+                    "statVarKey": [
+                      "Percent_Person_Obesity"
+                    ],
+                    "title": "Prevalence of Obesity in California",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
               }
-            ]
+            ],
+            "title": "Prevalence of Obesity"
           },
           {
             "columns": [
@@ -30,8 +43,21 @@
                     "type": "LINE"
                   }
                 ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Physical Health Issues in California",
+                    "statVarKey": [
+                      "Percent_Person_WithPhysicalHealthNotGood"
+                    ],
+                    "title": "Physical Health Issues in California",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
               }
-            ]
+            ],
+            "title": "Physical Health Issues"
           },
           {
             "columns": [
@@ -45,18 +71,24 @@
                       "Percent_Person_SleepLessThan7Hours",
                       "Percent_Person_Smoking"
                     ],
-                    "title": "Prevalence of Obesity and more in California",
+                    "title": "Prevalence of Obesity and More in California",
                     "type": "LINE"
                   }
                 ]
               }
-            ]
+            ],
+            "title": "Related: Prevalence of Obesity and More"
           },
           {
             "columns": [
               {
                 "tiles": [
                   {
+                    "barTileSpec": {
+                      "maxPlaces": 15,
+                      "maxVariables": 15,
+                      "sort": "DESCENDING"
+                    },
                     "comparisonPlaces": [
                       "geoId/06"
                     ],
@@ -64,6 +96,7 @@
                       "Percent_Person_WithPhysicalHealthNotGood_multiple_place_bar_block",
                       "Percent_Person_18OrMoreYears_WithDepression_multiple_place_bar_block",
                       "Percent_Person_18OrMoreYears_WithPoorGeneralHealth_multiple_place_bar_block",
+                      "Percent_Person_WithAllTeethLoss_multiple_place_bar_block",
                       "Percent_Person_WithArthritis_multiple_place_bar_block",
                       "Percent_Person_WithAsthma_multiple_place_bar_block",
                       "Percent_Person_WithCancerExcludingSkinCancer_multiple_place_bar_block",
@@ -76,12 +109,13 @@
                       "Percent_Person_WithMentalHealthNotGood_multiple_place_bar_block",
                       "Percent_Person_WithStroke_multiple_place_bar_block"
                     ],
-                    "title": "Physical Health Issues and more in California (${date})",
+                    "title": "Physical Health Issues and More in California (${date})",
                     "type": "BAR"
                   }
                 ]
               }
-            ]
+            ],
+            "title": "Related: Physical Health Issues and More"
           }
         ],
         "statVarSpec": {
@@ -118,6 +152,11 @@
           "Percent_Person_Smoking": {
             "name": "Prevalence of Smoking",
             "statVar": "Percent_Person_Smoking",
+            "unit": "%"
+          },
+          "Percent_Person_WithAllTeethLoss_multiple_place_bar_block": {
+            "name": "Prevalance of Complete Tooth Loss in the Population",
+            "statVar": "Percent_Person_WithAllTeethLoss",
             "unit": "%"
           },
           "Percent_Person_WithArthritis_multiple_place_bar_block": {
@@ -192,11 +231,6 @@
       "placeDcid": [
         "geoId/06"
       ]
-    },
-    "suggestions": {
-      "NL_PLACE_DISAMBIGUATION": {},
-      "NL_RELATED_PLACE": {},
-      "NL_RELATED_VAR": {}
     }
   },
   "context": {},
@@ -209,5 +243,14 @@
   },
   "placeFallback": {},
   "placeSource": "CURRENT_QUERY",
-  "svSource": "CURRENT_QUERY"
+  "places": [
+    {
+      "dcid": "geoId/06",
+      "name": "California",
+      "place_type": "State"
+    }
+  ],
+  "relatedThings": {},
+  "svSource": "CURRENT_QUERY",
+  "userMessage": ""
 }

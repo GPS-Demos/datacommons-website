@@ -43,10 +43,18 @@ import {
 } from "../../utils/app/visualization_utils";
 import { stringifyFn } from "../../utils/axios";
 import { scatterDataToCsv } from "../../utils/chart_csv_utils";
+import { getSeriesWithin } from "../../utils/data_fetch_utils";
 import { getStringOrNA } from "../../utils/number_utils";
 import { getPlaceScatterData } from "../../utils/scatter_data_utils";
 import { getDateRange } from "../../utils/string_utils";
-import { getStatVarName, ReplacementStrings } from "../../utils/tile_utils";
+import {
+  getDenomInfo,
+  getNoDataErrorMsg,
+  getStatFormat,
+  getStatVarNames,
+  ReplacementStrings,
+  showError,
+} from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
 import { useDrawOnResize } from "./use_draw_on_resize";
 
@@ -67,12 +75,17 @@ export interface ScatterTilePropType {
   showExploreMore?: boolean;
   // Whether or not to show a loading spinner when fetching data.
   showLoadingSpinner?: boolean;
+  // Text to show in footer
+  footnote?: string;
+  // The property to use to get place names.
+  placeNameProp?: string;
 }
 
 interface RawData {
   placeStats: PointApiResponse;
   population: SeriesApiResponse;
   placeNames: { [placeDcid: string]: string };
+  statVarNames: { [statVarDcid: string]: string };
 }
 
 interface ScatterChartData {
@@ -87,6 +100,9 @@ interface ScatterChartData {
   errorMsg: string;
   // props used when fetching this data
   props: ScatterTilePropType;
+  // Names of stat vars to use for labels
+  xStatVarName: string;
+  yStatVarName: string;
 }
 
 export function ScatterTile(props: ScatterTilePropType): JSX.Element {
@@ -104,7 +120,7 @@ export function ScatterTile(props: ScatterTilePropType): JSX.Element {
     loadSpinner(getSpinnerId());
     (async () => {
       const data = await fetchData(props);
-      if (props && _.isEqual(data.props, props)) {
+      if (props && data && _.isEqual(data.props, props)) {
         setScatterChartData(data);
       }
     })();
@@ -112,10 +128,6 @@ export function ScatterTile(props: ScatterTilePropType): JSX.Element {
 
   const drawFn = useCallback(() => {
     if (!scatterChartData || !areDataPropsEqual()) {
-      return;
-    }
-    if (_.isEmpty(scatterChartData.points)) {
-      removeSpinner(getSpinnerId());
       return;
     }
     draw(
@@ -137,7 +149,7 @@ export function ScatterTile(props: ScatterTilePropType): JSX.Element {
       sources={scatterChartData && scatterChartData.sources}
       replacementStrings={getReplacementStrings(props, scatterChartData)}
       className={`${props.className} scatter-chart`}
-      allowEmbed={!(scatterChartData && scatterChartData.errorMsg)}
+      allowEmbed={true}
       getDataCsv={
         scatterChartData
           ? () =>
@@ -151,29 +163,25 @@ export function ScatterTile(props: ScatterTilePropType): JSX.Element {
           : null
       }
       isInitialLoading={_.isNull(scatterChartData)}
-      exploreMoreUrl={props.showExploreMore ? getExploreMoreUrl(props) : ""}
+      exploreLink={props.showExploreMore ? getExploreLink(props) : null}
+      hasErrorMsg={scatterChartData && !!scatterChartData.errorMsg}
+      footnote={props.footnote}
     >
-      {scatterChartData && scatterChartData.errorMsg ? (
-        <div className="error-msg" style={{ minHeight: props.svgChartHeight }}>
-          {scatterChartData.errorMsg}
-        </div>
-      ) : (
-        <>
-          <div
-            id={props.id}
-            className="scatter-svg-container"
-            ref={svgContainer}
-            style={{ minHeight: props.svgChartHeight }}
-          />
-          <div
-            id="scatter-tooltip"
-            ref={tooltip}
-            style={{ visibility: "hidden" }}
-          />
-        </>
-      )}
+      <div className="scatter-tile-content">
+        <div
+          id={props.id}
+          className="scatter-svg-container"
+          ref={svgContainer}
+          style={{ minHeight: props.svgChartHeight }}
+        />
+        <div
+          id="scatter-tooltip"
+          ref={tooltip}
+          style={{ visibility: "hidden" }}
+        />
+      </div>
       {props.showLoadingSpinner && (
-        <div id={getSpinnerId()} className="scatter-spinner">
+        <div id={getSpinnerId()}>
           <div className="screen">
             <div id="spinner"></div>
           </div>
@@ -228,16 +236,7 @@ function getPopulationPromise(
   if (_.isEmpty(statVars)) {
     return Promise.resolve(null);
   } else {
-    return axios
-      .get(`${apiRoot || ""}/api/observations/series/within`, {
-        params: {
-          parentEntity: placeDcid,
-          childType: enclosedPlaceType,
-          variables: statVars,
-        },
-        paramsSerializer: stringifyFn,
-      })
-      .then((resp) => resp.data);
+    return getSeriesWithin(apiRoot, placeDcid, enclosedPlaceType, statVars);
   }
 }
 
@@ -253,10 +252,12 @@ export const fetchData = async (props: ScatterTilePropType) => {
       {
         statVarDcid: props.statVarSpec[0].statVar,
         date: props.statVarSpec[0].date,
+        facetId: props.statVarSpec[0].facetId,
       },
       {
         statVarDcid: props.statVarSpec[1].statVar,
         date: props.statVarSpec[1].date,
+        facetId: props.statVarSpec[1].facetId,
       },
     ],
     props.apiRoot
@@ -267,12 +268,16 @@ export const fetchData = async (props: ScatterTilePropType) => {
     props.statVarSpec,
     props.apiRoot
   );
+  const placeNamesParams = {
+    dcid: props.place.dcid,
+    descendentType: props.enclosedPlaceType,
+  };
+  if (props.placeNameProp) {
+    placeNamesParams["prop"] = props.placeNameProp;
+  }
   const placeNamesPromise = axios
     .get(`${props.apiRoot || ""}/api/place/descendent/name`, {
-      params: {
-        dcid: props.place.dcid,
-        descendentType: props.enclosedPlaceType,
-      },
+      params: placeNamesParams,
       paramsSerializer: stringifyFn,
     })
     .then((resp) => resp.data);
@@ -282,7 +287,11 @@ export const fetchData = async (props: ScatterTilePropType) => {
       populationPromise,
       placeNamesPromise,
     ]);
-    const rawData = { placeStats, population, placeNames };
+    const statVarNames = await getStatVarNames(
+      props.statVarSpec,
+      props.apiRoot
+    );
+    const rawData = { placeStats, population, placeNames, statVarNames };
     return rawToChart(rawData, props);
   } catch (error) {
     return null;
@@ -297,6 +306,8 @@ function rawToChart(
   const xStatVar = props.statVarSpec[1];
   const yPlacePointStat = rawData.placeStats.data[yStatVar.statVar];
   const xPlacePointStat = rawData.placeStats.data[xStatVar.statVar];
+  const xStatVarName = rawData.statVarNames[xStatVar.statVar];
+  const yStatVarName = rawData.statVarNames[yStatVar.statVar];
   if (!xPlacePointStat || !yPlacePointStat) {
     return;
   }
@@ -304,24 +315,20 @@ function rawToChart(
   const sources: Set<string> = new Set();
   const xDates: Set<string> = new Set();
   const yDates: Set<string> = new Set();
-  let xUnit = xStatVar.unit;
-  let yUnit = yStatVar.unit;
+  const xUnitScaling = getStatFormat(xStatVar, rawData.placeStats);
+  const yUnitScaling = getStatFormat(yStatVar, rawData.placeStats);
   for (const place in xPlacePointStat) {
     const namedPlace = {
       dcid: place,
       name: rawData.placeNames[place] || place,
     };
+    // get place chart data with no per capita or scaling.
     const placeChartData = getPlaceScatterData(
       namedPlace,
       xPlacePointStat,
       yPlacePointStat,
       rawData.population,
-      rawData.placeStats.facets,
-      xStatVar.denom,
-      yStatVar.denom,
-      null,
-      xStatVar.scaling,
-      yStatVar.scaling
+      rawData.placeStats.facets
     );
     if (!placeChartData) {
       console.log(
@@ -334,26 +341,65 @@ function rawToChart(
         sources.add(source);
       }
     });
-    points[place] = placeChartData.point;
-    xDates.add(placeChartData.point.xDate);
-    yDates.add(placeChartData.point.yDate);
-    xUnit = xUnit || placeChartData.xUnit;
-    yUnit = yUnit || placeChartData.yUnit;
+    const point = placeChartData.point;
+    if (xStatVar.denom) {
+      const denomInfo = getDenomInfo(
+        xStatVar,
+        rawData.population,
+        place,
+        point.xDate
+      );
+      if (!denomInfo) {
+        // skip this data point because missing denom data.
+        continue;
+      }
+      point.xVal /= denomInfo.value;
+      point.xPopDate = denomInfo.date;
+      point.xPopVal = denomInfo.value;
+      sources.add(denomInfo.source);
+    }
+    if (xUnitScaling.scaling) {
+      point.xVal *= xUnitScaling.scaling;
+    }
+    if (yStatVar.denom) {
+      const denomInfo = getDenomInfo(
+        yStatVar,
+        rawData.population,
+        place,
+        point.yDate
+      );
+      if (!denomInfo) {
+        // skip this data point because missing denom data.
+        continue;
+      }
+      point.yVal /= denomInfo.value;
+      point.yPopDate = denomInfo.date;
+      point.yPopVal = denomInfo.value;
+      sources.add(denomInfo.source);
+    }
+    if (yUnitScaling.scaling) {
+      point.yVal *= yUnitScaling.scaling;
+    }
+    points[place] = point;
+    xDates.add(point.xDate);
+    yDates.add(point.yDate);
   }
   const errorMsg = _.isEmpty(points)
-    ? "Sorry, we don't have data for those variables"
+    ? getNoDataErrorMsg(props.statVarSpec)
     : "";
   return {
     xStatVar,
     yStatVar,
     points,
     sources,
-    xUnit,
-    yUnit,
+    xUnit: xUnitScaling.unit,
+    yUnit: yUnitScaling.unit,
     xDate: getDateRange(Array.from(xDates)),
     yDate: getDateRange(Array.from(yDates)),
     errorMsg,
     props,
+    xStatVarName,
+    yStatVarName,
   };
 }
 
@@ -383,10 +429,16 @@ export function draw(
   scatterTileSpec: ScatterTileSpec,
   svgWidth?: number
 ): void {
-  // Need to clear svg container before getting the width for resize cases.
-  // Otherwise, svgContainer offsetWidth will just be previous width.
-  svgContainer.innerHTML = "";
+  if (chartData.errorMsg) {
+    showError(chartData.errorMsg, svgContainer);
+    return;
+  }
   const width = svgWidth || svgContainer.offsetWidth;
+  // TODO (chejennifer): we should not be getting to this state where width is 0
+  // and it might have to do with the resize observer. Look into root cause.
+  if (!width) {
+    return;
+  }
   const shouldHighlightQuadrants = {
     [ChartQuadrant.TOP_LEFT]: scatterTileSpec.highlightTopLeft,
     [ChartQuadrant.TOP_RIGHT]: scatterTileSpec.highlightTopRight,
@@ -411,23 +463,13 @@ export function draw(
     showRegression: false,
     highlightPoints,
   };
-  const yLabel = getStatVarName(
-    chartData.yStatVar.statVar,
-    [chartData.yStatVar],
-    !_.isEmpty(chartData.yStatVar.denom)
-  );
-  const xLabel = getStatVarName(
-    chartData.xStatVar.statVar,
-    [chartData.xStatVar],
-    !_.isEmpty(chartData.xStatVar.denom)
-  );
   const plotProperties: ScatterPlotProperties = {
     width,
     height: svgChartHeight,
-    xLabel,
-    yLabel,
-    xUnit: chartData.xStatVar.unit,
-    yUnit: chartData.yStatVar.unit,
+    xLabel: chartData.xStatVarName,
+    yLabel: chartData.yStatVarName,
+    xUnit: chartData.xUnit,
+    yUnit: chartData.yUnit,
   };
   drawScatter(
     svgContainer,
@@ -440,7 +482,10 @@ export function draw(
   );
 }
 
-function getExploreMoreUrl(props: ScatterTilePropType): string {
+function getExploreLink(props: ScatterTilePropType): {
+  displayText: string;
+  url: string;
+} {
   const displayOptions = {
     scatterPlaceLables: props.scatterTileSpec.showPlaceLabels,
     scatterQuadrants: props.scatterTileSpec.showQuadrants,
@@ -452,5 +497,8 @@ function getExploreMoreUrl(props: ScatterTilePropType): string {
     props.statVarSpec.slice(0, 2).map((svSpec) => getContextStatVar(svSpec)),
     displayOptions
   );
-  return `${props.apiRoot || ""}${URL_PATH}#${hash}`;
+  return {
+    displayText: "Scatter Tool",
+    url: `${props.apiRoot || ""}${URL_PATH}#${hash}`,
+  };
 }

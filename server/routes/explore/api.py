@@ -13,6 +13,7 @@
 # limitations under the License.
 """Endpoints for Datacommons NL"""
 
+import copy
 import json
 import logging
 import os
@@ -23,19 +24,17 @@ import flask
 from flask import Blueprint
 from flask import current_app
 from flask import request
-from google.protobuf.json_format import MessageToJson
 
-import server.lib.explore.detector as insight_detector
-import server.lib.explore.fulfiller as fulfillment
+import server.lib.explore.fulfiller_bridge as nl_fulfillment
 from server.lib.explore.params import DCNames
 from server.lib.explore.params import Params
+from server.lib.nl.common import serialize
 import server.lib.nl.common.constants as constants
 import server.lib.nl.common.counters as ctr
 import server.lib.nl.common.utils as utils
 import server.lib.nl.common.utterance as nl_utterance
-import server.lib.nl.config_builder.builder as config_builder
+import server.lib.nl.config_builder.base as config_builder
 import server.lib.nl.detection.detector as nl_detector
-from server.lib.nl.detection.types import Place
 from server.lib.nl.detection.utils import create_utterance
 from server.lib.util import get_nl_disaster_config
 from server.routes.nl import helpers
@@ -53,21 +52,22 @@ def detect():
       request, 'explore', debug_logs)
   if error_json:
     return error_json
-  if not utterance:
-    return helpers.abort('Failed to process!', '', [])
 
-  data_dict = insight_detector.detect_with_context(utterance)
+  data_dict = copy.deepcopy(utterance.insight_ctx)
+  utterance.prev_utterance = None
+  data_dict[Params.CTX.value] = serialize.save_utterance(utterance)
 
   dbg_counters = utterance.counters.get()
   utterance.counters = None
   status_str = "Successful"
 
-  return helpers.prepare_response(data_dict,
-                                  status_str,
-                                  utterance.detection,
-                                  dbg_counters,
-                                  debug_logs,
-                                  has_data=True)
+  return helpers.prepare_response_common(data_dict,
+                                         status_str,
+                                         utterance.detection,
+                                         dbg_counters,
+                                         debug_logs,
+                                         has_data=True,
+                                         test=utterance.test)
 
 
 #
@@ -82,52 +82,46 @@ def detect():
 def fulfill():
   """Data handler."""
   logging.info('NL Chart API: Enter')
-  # NO production support yet.
-  if os.environ.get('FLASK_ENV') == 'production':
-    flask.abort(404)
 
-  req_json = request.get_json()
-  if not req_json:
-    return helpers.abort('Missing input', '', [])
-  if not req_json.get('entities'):
-    return helpers.abort('`entities` must be provided', '', [])
+  debug_logs = {}
+  counters = ctr.Counters()
+  return _fulfill_with_insight_ctx(request, debug_logs, counters)
 
-  entities = req_json.get(Params.ENTITIES.value, [])
-  cmp_entities = req_json.get(Params.CMP_ENTITIES.value, [])
-  vars = req_json.get(Params.VARS.value, [])
-  cmp_vars = req_json.get(Params.CMP_VARS.value, [])
-  child_type = req_json.get(Params.CHILD_TYPE.value, '')
-  session_id = req_json.get(Params.SESSION_ID.value, '')
 
-  dc_name = req_json.get(Params.DC.value)
+#
+# The detect and fulfill endpoint.
+#
+@bp.route('/detect-and-fulfill', methods=['POST'])
+def detect_and_fulfill():
+  debug_logs = {}
+
+  test = request.args.get(Params.TEST.value, '')
+  # First sanity DC name, if any.
+  dc_name = request.get_json().get(Params.DC.value)
   if not dc_name:
     dc_name = DCNames.MAIN_DC.value
   if dc_name not in set([it.value for it in DCNames]):
-    return helpers.abort(f'Invalid DC Name {dc_name}', '', [])
+    return helpers.abort(f'Invalid Custom Data Commons Name {dc_name}',
+                         '', [],
+                         test=test)
 
-  counters = ctr.Counters()
-  debug_logs = {}
+  utterance, error_json = helpers.parse_query_and_detect(
+      request, 'explore', debug_logs)
+  if error_json:
+    return error_json
 
-  if not session_id:
-    if current_app.config['LOG_QUERY']:
-      session_id = utils.new_session_id('explore')
-    else:
-      session_id = constants.TEST_SESSION_ID
-
-  # There is not detection, so just construct a structure.
-  # TODO: Maybe check that if cmp_entities is set, entities should
-  # be singleton.
-  start = time.time()
-  query_detection, error_msg = nl_detector.construct(entities, vars, child_type,
-                                                     cmp_entities, cmp_vars,
-                                                     debug_logs, counters)
-  counters.timeit('query_detection', start)
-  if not query_detection:
-    return helpers.abort(error_msg, '', [])
-
-  utterance = create_utterance(query_detection, None, counters, session_id)
-  utterance.insight_ctx = req_json
+  # Set some params used downstream in explore flow.
+  utterance.insight_ctx[
+      Params.EXP_MORE_DISABLED.value] = request.get_json().get(
+          Params.EXP_MORE_DISABLED, "")
   utterance.insight_ctx[Params.DC.value] = dc_name
+
+  # Important to setup utterance for explore flow (this is really the only difference
+  # between NL and Explore).
+  start = time.time()
+  nl_detector.setup_for_explore(utterance)
+  utterance.counters.timeit('setup_for_explore', start)
+
   return _fulfill_with_chart_config(utterance, debug_logs)
 
 
@@ -151,52 +145,66 @@ def _fulfill_with_chart_config(utterance: nl_utterance.Utterance,
       sdg_percent_vars=current_app.config['SDG_PERCENT_VARS'])
 
   start = time.time()
-  fresp = fulfillment.fulfill(utterance, cb_config)
+  fresp = nl_fulfillment.fulfill(utterance, cb_config)
   utterance.counters.timeit('fulfillment', start)
-  if fresp.chart_pb:
-    # Use the first chart's place as main place.
-    main_place = utterance.places[0]
-    page_config = json.loads(MessageToJson(fresp.chart_pb))
 
-  else:
-    page_config = {}
-    utterance.place_source = nl_utterance.FulfillmentResult.UNRECOGNIZED
-    main_place = Place(dcid='', name='', place_type='')
-    logging.info('Found empty place for query "%s"',
-                 utterance.detection.original_query)
+  return helpers.prepare_response(utterance, fresp.chart_pb,
+                                  utterance.detection, debug_logs,
+                                  fresp.related_things)
 
-  dbg_counters = utterance.counters.get()
-  utterance.counters = None
-  context_history = nl_utterance.save_utterance(utterance)
 
-  data_dict = {
-      'place': {
-          'dcid': main_place.dcid,
-          'name': main_place.name,
-          'place_type': main_place.place_type,
-      },
-      'config': page_config,
-      'context': context_history,
-      'placeFallback': context_history[0]['placeFallback'],
-      'svSource': utterance.sv_source.value,
-      'placeSource': utterance.place_source.value,
-      'pastSourceContext': utterance.past_source_context,
-      'relatedThings': fresp.related_things,
-      'userMessage': fresp.user_message,
-  }
-  status_str = "Successful"
-  if utterance.rankedCharts:
-    status_str = ""
-  else:
-    if not utterance.places:
-      status_str += '**No Place Found**.'
-    if not utterance.svs:
-      status_str += '**No SVs Found**.'
+#
+# Given an insight context, fulfills it into charts.
+#
+def _fulfill_with_insight_ctx(request: Dict, debug_logs: Dict,
+                              counters: ctr.Counters) -> Dict:
+  insight_ctx = request.get_json()
+  test = request.args.get(Params.TEST.value, '')
+  if not insight_ctx:
+    return helpers.abort('Sorry, could not answer your query.',
+                         '', [],
+                         test=test)
+  if not insight_ctx.get('entities'):
+    return helpers.abort('Could not recognize any places in the query.',
+                         '', [],
+                         test=test)
 
-  has_charts = True if page_config else False
-  return helpers.prepare_response(data_dict,
-                                  status_str,
-                                  utterance.detection,
-                                  dbg_counters,
-                                  debug_logs,
-                                  has_data=has_charts)
+  entities = insight_ctx.get(Params.ENTITIES.value, [])
+  cmp_entities = insight_ctx.get(Params.CMP_ENTITIES.value, [])
+  vars = insight_ctx.get(Params.VARS.value, [])
+  cmp_vars = insight_ctx.get(Params.CMP_VARS.value, [])
+  child_type = insight_ctx.get(Params.CHILD_TYPE.value, '')
+  session_id = insight_ctx.get(Params.SESSION_ID.value, '')
+  classifications = insight_ctx.get(Params.CLASSIFICATIONS.value, [])
+
+  dc_name = insight_ctx.get(Params.DC.value)
+  if not dc_name:
+    dc_name = DCNames.MAIN_DC.value
+  if dc_name not in set([it.value for it in DCNames]):
+    return helpers.abort(f'Invalid Custom Data Commons Name {dc_name}',
+                         '', [],
+                         test=test)
+
+  if not session_id:
+    if current_app.config['LOG_QUERY']:
+      session_id = utils.new_session_id('explore')
+    else:
+      session_id = constants.TEST_SESSION_ID
+
+  # There is not detection, so just construct a structure.
+  # TODO: Maybe check that if cmp_entities is set, entities should
+  # be singleton.
+  start = time.time()
+  debug_logs = {}
+  query_detection, error_msg = nl_detector.construct_for_explore(
+      entities, vars, child_type, cmp_entities, cmp_vars, classifications,
+      debug_logs, counters)
+  counters.timeit('construct_for_explore', start)
+  if not query_detection:
+    return helpers.abort(error_msg, '', [], test=test)
+
+  utterance = create_utterance(query_detection, None, counters, session_id,
+                               test)
+  utterance.insight_ctx = insight_ctx
+  utterance.insight_ctx[Params.DC.value] = dc_name
+  return _fulfill_with_chart_config(utterance, debug_logs)

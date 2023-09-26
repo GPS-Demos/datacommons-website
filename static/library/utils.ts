@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+import React from "react";
+import ReactDOM from "react-dom";
+
+import { ICON_STYLESHEET_URL } from "./constants";
+
 /** Library of helper functions shared across web components */
 
 /**
@@ -34,4 +39,60 @@ export function convertArrayAttribute(attributeValue: string): string[] {
     // Otherwise, parse as whitespace separated list
     return attributeValue.split(/\s+/g);
   }
+}
+
+/**
+ * Custom attribute converter for boolean type attributes.
+ * Checks that the attribute value does not equal "false".
+ *
+ * @param attributeValue the attribute value provided to the web component
+ * @returns boolean
+ */
+export function convertBooleanAttribute(attributeValue: string): boolean {
+  return attributeValue.toLowerCase() !== "false";
+}
+
+/**
+ * Create the HTML web component for a tile.
+ * @param tile React function to create the Tile's JSX
+ * @param tileProps the tile's props
+ * @returns HTML Element containing the tile wrapped as a web component
+ */
+export function createWebComponentElement(
+  tile: (props: any) => JSX.Element,
+  tileProps: any
+): HTMLElement {
+  const container = document.createElement("div");
+
+  // Add stylesheet for material icons to the shadow DOM
+  const link = document.createElement("link");
+  link.setAttribute("rel", "stylesheet");
+  link.setAttribute("href", ICON_STYLESHEET_URL);
+  container.appendChild(link);
+
+  // Create mount point and render tile in it
+  const mountPoint = document.createElement("div");
+  ReactDOM.render(React.createElement(tile, tileProps), mountPoint);
+  container.appendChild(mountPoint);
+
+  return container;
+}
+
+/**
+ * Gets a function for processing variable names using variable name regex and
+ * a default variable name
+ * @param variableNameRegex regex to use for extracting out a part of the name
+ * @param defaultVariableName default name to use if nothing extracted out
+ */
+export function getVariableNameProcessingFn(
+  variableNameRegex: string,
+  defaultVariableName: string
+): (name: string) => string {
+  if (!variableNameRegex) {
+    return null;
+  }
+  return (name: string) => {
+    const extractedName = name.match(variableNameRegex)?.shift();
+    return extractedName || defaultVariableName || name;
+  };
 }

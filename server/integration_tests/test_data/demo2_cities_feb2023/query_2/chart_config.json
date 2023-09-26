@@ -15,8 +15,21 @@
                     "type": "LINE"
                   }
                 ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Asthma in Sunnyvale",
+                    "statVarKey": [
+                      "Percent_Person_WithAsthma"
+                    ],
+                    "title": "Asthma in Sunnyvale",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
               }
-            ]
+            ],
+            "title": "Asthma"
           },
           {
             "columns": [
@@ -30,14 +43,32 @@
                     "type": "LINE"
                   }
                 ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Chronic Obstructive Pulmonary Disease in Sunnyvale",
+                    "statVarKey": [
+                      "Percent_Person_WithChronicObstructivePulmonaryDisease"
+                    ],
+                    "title": "Chronic Obstructive Pulmonary Disease in Sunnyvale",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
               }
-            ]
+            ],
+            "title": "Chronic Obstructive Pulmonary Disease"
           },
           {
             "columns": [
               {
                 "tiles": [
                   {
+                    "barTileSpec": {
+                      "maxPlaces": 15,
+                      "maxVariables": 15,
+                      "sort": "DESCENDING"
+                    },
                     "comparisonPlaces": [
                       "geoId/0677000"
                     ],
@@ -58,12 +89,13 @@
                       "Percent_Person_WithPhysicalHealthNotGood_multiple_place_bar_block",
                       "Percent_Person_WithStroke_multiple_place_bar_block"
                     ],
-                    "title": "Asthma and more in Sunnyvale (${date})",
+                    "title": "Asthma and More in Sunnyvale (${date})",
                     "type": "BAR"
                   }
                 ]
               }
-            ]
+            ],
+            "title": "Related: Asthma and More"
           }
         ],
         "statVarSpec": {
@@ -171,5 +203,14 @@
   },
   "placeFallback": {},
   "placeSource": "PAST_QUERY",
-  "svSource": "CURRENT_QUERY"
+  "places": [
+    {
+      "dcid": "geoId/0677000",
+      "name": "Sunnyvale",
+      "place_type": "City"
+    }
+  ],
+  "relatedThings": {},
+  "svSource": "CURRENT_QUERY",
+  "userMessage": "See relevant statistics for Sunnyvale based on the previous query."
 }

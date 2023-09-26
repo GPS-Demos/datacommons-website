@@ -22,6 +22,7 @@ from flask import Blueprint
 from flask import current_app
 from flask import request
 
+from server.lib.nl.detection import context
 from server.routes.nl import helpers
 import server.services.bigtable as bt
 
@@ -41,16 +42,11 @@ def data():
       request, 'nl', debug_logs)
   if error_json:
     return error_json
-  if not utterance:
-    return helpers.abort('Failed to process!', '', [])
   return helpers.fulfill_with_chart_config(utterance, debug_logs)
 
 
 @bp.route('/history')
 def history():
-  # No production support.
-  if os.environ.get('FLASK_ENV') == 'production':
-    flask.abort(404)
   return json.dumps(bt.read_success_rows())
 
 
@@ -72,8 +68,7 @@ def history():
 #
 @bp.route('/feedback', methods=['POST'])
 def feedback():
-  if (os.environ.get('FLASK_ENV') == 'production' or
-      not current_app.config['LOG_QUERY']):
+  if (not current_app.config['LOG_QUERY']):
     flask.abort(404)
 
   session_id = request.json['sessionId']

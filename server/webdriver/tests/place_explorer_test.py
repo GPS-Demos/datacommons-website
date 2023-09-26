@@ -26,6 +26,15 @@ CA_URL = '/place/geoId/06'
 PLACE_SEARCH = 'California, USA'
 
 
+def element_has_text(driver, locator):
+  """Custom expected condition to check if element has text."""
+  element = driver.find_element(*locator)
+  if element.text:
+    return element
+  else:
+    return False
+
+
 class TestPlaceExplorer(WebdriverBaseTest):
   """Class to test place explorer tool."""
 
@@ -232,13 +241,13 @@ class TestPlaceExplorer(WebdriverBaseTest):
     # Check the title text.
     chart_unit_highest_title = self.driver.find_element(
         By.XPATH,
-        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[1]/h4'
+        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[1]/div/h4'
     ).text
     self.assertTrue = (CHART_UNIT_HIGHEST_TITLE in chart_unit_highest_title)
 
     chart_unit_lowest_title = self.driver.find_element(
         By.XPATH,
-        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[2]/h4'
+        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[2]/div/h4'
     ).text
     self.assertTrue = (CHART_UNIT_LOWEST_TITLE in chart_unit_lowest_title)
 
@@ -272,18 +281,13 @@ class TestPlaceExplorer(WebdriverBaseTest):
     CA_ECONOMICS_URL = CA_URL + "?category=Economics"
     self.driver.get(self.url_ + CA_ECONOMICS_URL)
 
+    xpath = '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[1]/table/tbody/tr[1]/td[2]/a'
     # Wait for the presence of place name.
-    place_name_present = EC.presence_of_element_located((
-        By.XPATH,
-        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[1]/table/tbody/tr[1]/td[2]/a'
-    ))
-    WebDriverWait(self.driver, self.TIMEOUT_SEC).until(place_name_present)
+    WebDriverWait(self.driver, self.TIMEOUT_SEC).until(
+        lambda driver: element_has_text(driver, (By.XPATH, xpath)))
 
     # Click the place name.
-    place_name = self.driver.find_element(
-        By.XPATH,
-        '//*[@id="main-pane"]/section[5]/div/div[6]/div/div/div/div/div[1]/table/tbody/tr[1]/td[2]/a'
-    )
+    place_name = self.driver.find_element(By.XPATH, xpath)
     place_name_text = place_name.text
     place_name.click()
 

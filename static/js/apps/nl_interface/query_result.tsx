@@ -19,19 +19,21 @@
  */
 
 import axios from "axios";
+import queryString from "query-string";
 import React, { createRef, memo, useEffect, useRef } from "react";
 import { Container } from "reactstrap";
 
 import { SubjectPageMainPane } from "../../components/subject_page/main_pane";
+import { URL_HASH_PARAMS } from "../../constants/app/explore_constants";
 import { SVG_CHART_HEIGHT } from "../../constants/app/nl_interface_constants";
 import { NlSessionContext } from "../../shared/context";
 import {
   CHART_FEEDBACK_SENTIMENT,
   getFeedbackLink,
 } from "../../utils/nl_interface_utils";
+import { trimCategory } from "../../utils/subject_page_utils";
 import { useStoreActions, useStoreState } from "./app_state";
 import { DebugInfo } from "./debug_info";
-import { NLCommentary } from "./nl_commentary";
 
 const FEEDBACK_LINK =
   "https://docs.google.com/forms/d/e/1FAIpQLSe9SG0hOfrK7UBiOkQbK0ieC0yP5v-8gnQKU3mSIyzqdv6WaQ/viewform?usp=pp_url";
@@ -97,6 +99,11 @@ export const QueryResult = memo(function QueryResult(
     nlQuery.query || "",
     nlQuery.debugData
   );
+
+  const hashParams = queryString.parse(window.location.hash);
+  const maxBlockParam = hashParams[URL_HASH_PARAMS.MAXIMUM_BLOCK];
+  const maxBlock = parseInt(maxBlockParam as string);
+
   return (
     <>
       <div className="nl-query" ref={scrollRef}>
@@ -114,7 +121,7 @@ export const QueryResult = memo(function QueryResult(
           <a href={feedbackLink} target="_blank" rel="noreferrer">
             Feedback
           </a>
-          {nlQuery.chartData && nlQuery.chartData.sessionId && (
+          {nlQuery.queryResult && nlQuery.queryResult.sessionId && (
             <span
               className={`feedback-emoji ${
                 nlQuery.feedbackGiven ? "feedback-emoji-dim" : ""
@@ -131,16 +138,18 @@ export const QueryResult = memo(function QueryResult(
           {nlQuery.debugData && (
             <DebugInfo
               debugData={nlQuery.debugData}
-              chartsData={nlQuery.chartData}
+              queryResult={nlQuery.queryResult}
             ></DebugInfo>
           )}
-          {nlQuery.chartData && <NLCommentary chartsData={nlQuery.chartData} />}
-          {nlQuery.chartData && nlQuery.chartData.config && (
-            <NlSessionContext.Provider value={nlQuery.chartData.sessionId}>
+          {nlQuery.userMessage && (
+            <div className="nl-query-info">{nlQuery.userMessage}</div>
+          )}
+          {nlQuery.queryResult && nlQuery.queryResult.config && (
+            <NlSessionContext.Provider value={nlQuery.queryResult.sessionId}>
               <SubjectPageMainPane
                 id={`pg${props.queryIdx}`}
-                place={nlQuery.chartData.place}
-                pageConfig={nlQuery.chartData.config}
+                place={nlQuery.queryResult.place}
+                pageConfig={trimCategory(nlQuery.queryResult.config, maxBlock)}
                 svgChartHeight={SVG_CHART_HEIGHT}
                 showExploreMore={true}
               />
@@ -181,7 +190,7 @@ export const QueryResult = memo(function QueryResult(
       id: nlQuery.id,
     });
     axios.post("/api/nl/feedback", {
-      sessionId: nlQuery.chartData.sessionId,
+      sessionId: nlQuery.queryResult.sessionId,
       feedbackData: {
         queryId: props.queryIdx,
         sentiment,

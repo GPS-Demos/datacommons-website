@@ -25,12 +25,11 @@
  {% block head %}
  <link rel="stylesheet" href={{url_for('static', filename='css/explore.min.css', t=config['VERSION'])}} >
  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
- <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
  <script src="https://datacommons.org/datacommons.js"></script>
  {% endblock %}
 
  {% block content %}
-<div id="metadata" class="d-none" data-website-hash="{{ website_hash }}"></div>
+ <div id="metadata" class="d-none" data-website-hash="{{ website_hash }}" data-hide-debug="{{ config['HIDE_DEBUG'] }}"></div>
  <div id="dc-explore"></div>
  {% endblock %}
  {% block footer %}

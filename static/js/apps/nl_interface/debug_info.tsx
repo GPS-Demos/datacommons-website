@@ -19,15 +19,18 @@
  */
 
 import _ from "lodash";
+import queryString from "query-string";
 import React, { useState } from "react";
 import { Col, Row } from "reactstrap";
 
 import {
   DebugInfo,
   MultiSVCandidate,
-  SearchResult,
+  QueryResult,
   SVScores,
 } from "../../types/app/nl_interface_types";
+
+const DEBUG_PARAM = "dbg";
 
 const svToSentences = (
   svScores: SVScores,
@@ -158,20 +161,25 @@ const multiVarScoresElement = (svScores: SVScores): JSX.Element => {
 
 export interface DebugInfoProps {
   debugData: any; // from the server response
-  chartsData: SearchResult;
+  queryResult: QueryResult;
 }
 
 export function DebugInfo(props: DebugInfoProps): JSX.Element {
-  const [showDebug, setShowDebug] = useState(false);
-
-  if (_.isEmpty(props.debugData)) {
+  const debugParam = queryString.parse(window.location.hash)[DEBUG_PARAM];
+  const hideDebug =
+    document.getElementById("metadata").dataset.hideDebug === "True" &&
+    !debugParam;
+  if (_.isEmpty(props.debugData) || hideDebug) {
     return <></>;
   }
+  const [showDebug, setShowDebug] = useState(false);
 
   const debugInfo = {
     status: props.debugData["status"],
+    blocked: props.debugData["blocked"] || false,
     originalQuery: props.debugData["original_query"],
     detectionType: props.debugData["detection_type"],
+    llmApiType: props.debugData["llm_api_type"],
     placeDetectionType: props.debugData["place_detection_type"],
     placesDetected: props.debugData["places_detected"],
     placesResolved: props.debugData["places_resolved"],
@@ -182,8 +190,8 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
     svScores: props.debugData["sv_matching"],
     svSentences: props.debugData["svs_to_sentences"],
     rankingClassification: props.debugData["ranking_classification"],
-    overviewClassification: props.debugData["overview_classification"],
-    sizeTypeClassification: props.debugData["size_type_classification"],
+    generalClassification: props.debugData["general_classification"],
+    superlativeClassification: props.debugData["superlative_classification"],
     timeDeltaClassification: props.debugData["time_delta_classification"],
     comparisonClassification: props.debugData["comparison_classification"],
     containedInClassification: props.debugData["contained_in_classification"],
@@ -220,11 +228,17 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
             <b>Detection Type: </b> {debugInfo.detectionType}
           </Row>
           <Row>
+            <b>LLM API Type: </b> {debugInfo.llmApiType}
+          </Row>
+          <Row>
             <b>Place Detection Type: </b>{" "}
             {debugInfo.placeDetectionType.toUpperCase()}
           </Row>
           <Row>
             <b>Original Query: </b> {debugInfo.originalQuery}
+          </Row>
+          <Row>
+            <b>Blocked:</b> {debugInfo.blocked.toString()}
           </Row>
           <Row>
             <b>Query used for variable detection: </b>
@@ -234,7 +248,12 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
             <b>Place Detection:</b>
           </Row>
           <Row>
-            <Col>Places Detected: {debugInfo.placesDetected.join(", ")}</Col>
+            <Col>
+              Places Detected:{" "}
+              {debugInfo.placesDetected
+                ? debugInfo.placesDetected.join(", ")
+                : ""}
+            </Col>
           </Row>
           <Row>
             <Col>Places Resolved: {debugInfo.placesResolved}</Col>
@@ -253,8 +272,8 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
           </Row>
           <Row>
             <Col>
-              Size Type (generic) classification:{" "}
-              {debugInfo.sizeTypeClassification}
+              Superlative type classification:{" "}
+              {debugInfo.superlativeClassification}
             </Col>
           </Row>
           <Row>
@@ -281,9 +300,7 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
             <Col>Event classification: {debugInfo.eventClassification}</Col>
           </Row>
           <Row>
-            <Col>
-              Overview classification: {debugInfo.overviewClassification}
-            </Col>
+            <Col>General classification: {debugInfo.generalClassification}</Col>
           </Row>
           <Row>
             <Col>
@@ -324,26 +341,26 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
           <Row>
             <b>Query Fulfillment:</b>
           </Row>
-          {props.chartsData && (
+          {props.queryResult && (
             <Row>
               <Col>
-                Place Query Source: {props.chartsData.placeSource}
-                {props.chartsData.pastSourceContext
-                  ? "(" + props.chartsData.pastSourceContext + ")"
+                Place Query Source: {props.queryResult.placeSource}
+                {props.queryResult.pastSourceContext
+                  ? "(" + props.queryResult.pastSourceContext + ")"
                   : ""}
               </Col>
             </Row>
           )}
-          {props.chartsData && (
+          {props.queryResult && (
             <Row>
-              <Col>Variable Query Source: {props.chartsData.svSource}</Col>
+              <Col>Variable Query Source: {props.queryResult.svSource}</Col>
             </Row>
           )}
-          {props.chartsData && props.chartsData.placeFallback && (
+          {props.queryResult && props.queryResult.placeFallback && (
             <Row>
               <Col>
-                Place Fallback: &quot;{props.chartsData.placeFallback.origStr}
-                &quot; to &quot;{props.chartsData.placeFallback.newStr}&quot;
+                Place Fallback: &quot;{props.queryResult.placeFallback.origStr}
+                &quot; to &quot;{props.queryResult.placeFallback.newStr}&quot;
               </Col>
             </Row>
           )}
@@ -360,7 +377,7 @@ export function DebugInfo(props: DebugInfoProps): JSX.Element {
             <Col>
               <pre>
                 {JSON.stringify(
-                  props.chartsData ? props.chartsData.config : null,
+                  props.queryResult ? props.queryResult.config : null,
                   null,
                   2
                 )}

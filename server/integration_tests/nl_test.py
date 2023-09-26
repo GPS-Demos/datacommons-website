@@ -26,30 +26,31 @@ _TEST_MODE = os.environ['TEST_MODE']
 _TEST_DATA = 'test_data'
 
 
-class IntegrationTest(NLWebServerTestCase):
+class NLTest(NLWebServerTestCase):
 
   # TODO: Validate contexts as well eventually.
   def run_sequence(self,
                    test_dir,
                    queries,
                    idx='medium_ft',
-                   detector='hybrid',
+                   detector='hybridsafety',
                    check_place_detection=False,
                    expected_detectors=[],
                    place_detector='dc',
-                   failure=''):
+                   failure='',
+                   test=''):
     if detector == 'heuristic':
       detection_method = 'Heuristic Based'
     elif detector == 'llm':
       detection_method = 'LLM Based'
-    elif detector == 'hybrid':
+    elif detector == 'hybrid' or detector == 'hybridsafety':
       detection_method = 'Hybrid - Heuristic Based'
     ctx = {}
     for i, q in enumerate(queries):
       print('Issuing ', test_dir, f'query[{i}]', q)
       resp = requests.post(
           self.get_server_url() +
-          f'/api/nl/data?q={q}&idx={idx}&detector={detector}&place_detector={place_detector}',
+          f'/api/nl/data?q={q}&idx={idx}&detector={detector}&place_detector={place_detector}&test={test}',
           json={
               'contextHistory': ctx
           }).json()
@@ -156,6 +157,7 @@ class IntegrationTest(NLWebServerTestCase):
             # Proxy for parks in magiceye
             'Which cities in the SF Bay Area have the highest larceny',
             'What countries in Africa had the greatest increase in life expectancy',
+            'What is the fertility rate in these countries?',
             # This should list stats about the middle school students.
             'How many middle schools are there in Sunnyvale',
         ])
@@ -180,9 +182,9 @@ class IntegrationTest(NLWebServerTestCase):
             # instead we would pick contained-in from context (County).
             'GDP of countries in the US',
         ],
-        detector='hybrid',
+        detector='hybridsafety',
         expected_detectors=[
-            'Hybrid - LLM Fallback',
+            'Hybrid - LLM Safety',
             'Hybrid - Heuristic Based',
             'Hybrid - Heuristic Based',
             'Hybrid - Heuristic Based',
@@ -208,24 +210,10 @@ class IntegrationTest(NLWebServerTestCase):
 
   def test_demo_climatetrace(self):
     self.run_sequence('demo_climatetrace',
-                      ['Which countries emit the most greenhouse gases?'])
-
-  # # This test uses NER.
-  def test_place_detection_e2e_ner(self):
-    self.run_sequence('place_detection_e2e', [
-        'tell me about palo alto',
-        'US states which have that the cheapest houses',
-        'what about in florida',
-        'compare with california and new york state and washington state',
-        'show me the population of mexico city',
-        'counties in the US with the most poverty',
-    ],
-                      check_place_detection=True,
-                      place_detector='ner')
+                      ['Which countries emit the most greenhouse gases?'],
+                      test='unittest')
 
   # This test uses DC's Recognize Places API.
-  # TODO: "US" is not detected by RecognizePlaces.
-  # TODO: Also "mexico city" is wrongly detected.
   def test_place_detection_e2e_dc(self):
     self.run_sequence('place_detection_e2e_dc', [
         'tell me about palo alto',
@@ -266,7 +254,7 @@ class IntegrationTest(NLWebServerTestCase):
         'health in the world',
     ])
 
-  def test_inappropriate_query(self):
+    # def test_inappropriate_query(self):
     self.run_sequence('inappropriate_query',
                       ['how many wise asses live in sunnyvale?'],
-                      failure='inappropriate words')
+                      failure='could not complete')

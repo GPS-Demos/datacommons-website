@@ -29,12 +29,14 @@ import {
   triggerGAEvent,
 } from "../shared/ga_events";
 import { StatVarInfo } from "../shared/stat_var";
-import { Boundary } from "../shared/types";
 import { DataGroup, Style, wrap } from "./base";
 import {
   AXIS_TEXT_FILL,
+  HIGHLIGHT_TIMEOUT,
   LEGEND,
+  LEGEND_HIGHLIGHT_CLASS,
   MARGIN,
+  NUM_X_TICKS,
   NUM_Y_TICKS,
   TEXT_FONT_FAMILY,
   TOOLTIP_ID,
@@ -44,25 +46,26 @@ const AXIS_GRID_FILL = "#999";
 // max number of characters a unit can have and still be shown next to ticks
 // When a unit is longer, we show the unit as an axes label instead
 export const MAX_UNIT_LENGTH = 5;
-const NUM_X_TICKS = 5;
 const ROTATE_MARGIN_BOTTOM = 75;
 const TICK_SIZE = 6;
-// min distance between bottom of the tooltip and a datapoint
-const TOOLTIP_BOTTOM_OFFSET = 5;
 
 /**
  * Adds tooltip element within a given container.
  *
- * @param containerId container to add tooltip element to.
+ * @param container container to add tooltip element to.
+ * @returns tooltip element that was added
  */
 export function addTooltip(
   container: d3.Selection<HTMLDivElement, any, any, any>
-): void {
+): d3.Selection<HTMLDivElement, any, any, any> {
+  const tooltipRef = _.uniqueId(`${TOOLTIP_ID}-`);
   container
     .attr("style", "position: relative")
     .append("div")
-    .attr("id", TOOLTIP_ID)
+    .attr("id", tooltipRef)
+    .attr("class", "draw-tooltip")
     .attr("style", "position: absolute; display: none; z-index: 1");
+  return container.select(`#${tooltipRef}`);
 }
 
 /**
@@ -73,6 +76,8 @@ export function addTooltip(
  * @param xScale: d3-scale for the x-axis
  * @param shouldRotate: true if the x-ticks should be rotated (no wrapping applied).
  * @param labelToLink: optional map of [label] -> link for each ordinal tick
+ * @param tickFormatFn: function to format tick label
+ * @param numTicks: number of ticks to display
  *
  * @return the height of the x-axis bounding-box.
  */
@@ -83,18 +88,24 @@ export function addXAxis(
   shouldRotate?: boolean,
   labelToLink?: { [label: string]: string },
   singlePointLabel?: string,
-  apiRoot?: string
+  apiRoot?: string,
+  tickFormatFn?: (arg: any, index: any) => string,
+  numTicks?: number
 ): number {
   let d3Axis = d3
     .axisBottom(xScale)
-    .ticks(NUM_X_TICKS)
+    .ticks(numTicks || NUM_X_TICKS)
     .tickSize(TICK_SIZE)
     .tickSizeOuter(0);
+  if (tickFormatFn) {
+    d3Axis.tickFormat(tickFormatFn);
+  }
   if (singlePointLabel) {
     d3Axis = d3Axis.tickFormat(() => {
       return singlePointLabel;
     });
   }
+
   if (shouldRotate && typeof xScale.bandwidth == "function") {
     if (xScale.bandwidth() < 5) {
       d3Axis.tickValues(xScale.domain().filter((v, i) => i % 5 == 0));
@@ -294,20 +305,35 @@ export function addYAxis(
 }
 
 /**
+ * Create a function mapping a legend label to a unique ID string, used to match
+ * a chart's data representation objects (line, bar, etc) with legend labels.
+ * @param labels array of labels present in the legend
+ */
+export function getLegendKeyFn(labels: string[]): (label: string) => string {
+  return function (label: string): string {
+    return `legend-index-${labels.indexOf(label)}`;
+  };
+}
+
+export interface LegendItem {
+  dcid?: string;
+  label: string;
+  link?: string;
+  index?: string;
+}
+
+/**
  * Adds a legend to the parent element
  * @param elem parent element
  * @param color d3 color scale
  * @param key legend items
- * @param marginLeft [optional] legend offset
+ * @param svg svg element to find corresponding bars/lines/etc. in
+ * @param apiRoot root to use for links in legend items
  */
 export function appendLegendElem(
   elem: HTMLElement,
   color: d3.ScaleOrdinal<string, string>,
-  keys: {
-    dcid?: string;
-    label: string;
-    link?: string;
-  }[],
+  keys: LegendItem[],
   apiRoot?: string
 ): void {
   const legendContainer = d3
@@ -320,7 +346,8 @@ export function appendLegendElem(
     .selectAll("div")
     .data(keys)
     .join("div")
-    .attr("class", "legend-item");
+    .attr("class", "legend-item")
+    .attr("id", (d) => d.index || null);
 
   legendItem
     .append("div")
@@ -340,6 +367,35 @@ export function appendLegendElem(
         [GA_PARAM_PLACE_CHART_CLICK]: GA_VALUE_PLACE_CHART_CLICK_STAT_VAR_CHIP,
       })
     );
+
+  // Add highlighting to svg chart area when mousing over legend
+  const svg = d3.select(elem).select("svg");
+  if (svg) {
+    // define mouse behavior functions
+    let hideFn: ReturnType<typeof setTimeout> = null;
+    const highlightSelector = `.${LEGEND_HIGHLIGHT_CLASS}`;
+    const mouseoverFn = function () {
+      if (hideFn) {
+        clearTimeout(hideFn);
+      }
+      const selector = this.id ? `.${this.id}` : null;
+      svg.selectAll(highlightSelector).style("opacity", 0.3);
+      svg.selectAll(selector).style("opacity", 1);
+    };
+    const mouseoutFn = function () {
+      // Slightly delay resetting styling so that quickly mousing over a stream
+      // of legend items doesn't result in the chart flickering
+      hideFn = setTimeout(() => {
+        svg.selectAll(highlightSelector).style("opacity", 1);
+      }, HIGHLIGHT_TIMEOUT);
+    };
+
+    // Add mouse behavior functions on hover to legend items
+    legendContainer
+      .selectAll(".legend-item")
+      .on("mouseover", mouseoverFn)
+      .on("mouseout", mouseoutFn);
+  }
 }
 
 /**
@@ -480,43 +536,6 @@ export function getDisplayUnitAndLabel(
     }
   }
   return [displayUnit, label];
-}
-
-/**
- * Position and show the tooltip.
- *
- * @param contentHTML innerHTML of the tooltip as a string.
- * @param containerId id of the div containing the tooltip.
- * @param datapointX x coordinate of the datapoint that the tooltip is being shown for.
- * @param datapointY y coordinate of the datapoint that the tooltip is being shown for.
- * @param relativeBoundary tooltip boundary relative to its container element.
- */
-export function showTooltip(
-  contentHTML: string,
-  container: d3.Selection<HTMLDivElement, any, any, any>,
-  datapointX: number,
-  datapointY: number,
-  relativeBoundary: Boundary
-): void {
-  const tooltipSelect = container.select(`#${TOOLTIP_ID}`).html(contentHTML);
-  const rect = (tooltipSelect.node() as HTMLDivElement).getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  // center tooltip over the datapoint. If this causes the tooltip to overflow the boundary,
-  // place the tooltip against the respective boundary.
-  let left = datapointX - width / 2;
-  if (left < relativeBoundary.left) {
-    left = relativeBoundary.left;
-  } else if (left + width > relativeBoundary.right) {
-    left = relativeBoundary.right - width;
-  }
-  // place the tooltip against the top of the chart area unless there is too little space between it
-  // and the datapoint, then place the tooltip against the bottom of the chart area
-  let top = 0;
-  if (height > datapointY - TOOLTIP_BOTTOM_OFFSET) {
-    top = relativeBoundary.bottom - height;
-  }
-  tooltipSelect.style("left", left + "px").style("top", top + "px");
 }
 
 /**

@@ -81,7 +81,10 @@ const config = {
       __dirname + "/css/biomedical/protein.scss",
     ],
     static: __dirname + "/css/static.scss",
-    screenshot: __dirname + "/css/screenshot.scss",
+    screenshot: [
+      __dirname + "/js/apps/screenshot/main.ts",
+      __dirname + "/css/screenshot.scss",
+    ],
     translator: [
       __dirname + "/js/translator/translator.ts",
       __dirname + "/css/translator.scss",
@@ -115,12 +118,9 @@ const config = {
       __dirname + "/js/apps/sustainability/main.ts",
       __dirname + "/css/sustainability.scss",
     ],
-    datacommons: [
-      __dirname + "/library/index.ts",
-      __dirname + "/css/datacommons.scss",
-    ],
+    datacommons: [__dirname + "/library/index.ts"],
     homepage: [
-      __dirname + "/js/homepage/main.ts",
+      __dirname + "/js/apps/homepage/main.ts",
       __dirname + "/css/homepage.scss",
     ],
     visualization: [

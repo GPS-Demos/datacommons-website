@@ -8,17 +8,16 @@ visualizations in your web application.
 
 ## Usage
 
-Include `datacommons.js` and `datacommons.min.css` in your html's `<head>...</head>` tag. Then use `datacommons-*` [web component](https://developer.mozilla.org/en-US/docs/Web/API/Web_components) tags to add embedded data visualizations.
+Include `datacommons.js` in your html's
+`<head>...</head>` tag. Then use `datacommons-*` [web
+component](https://developer.mozilla.org/en-US/docs/Web/API/Web_components) tags
+to add embedded data visualizations.
 
 Example:
 
 ```html
 <html>
   <head>
-    <link
-      rel="stylesheet"
-      href="https://datacommons.org/css/datacommons.min.css"
-    />
     <script src="https://datacommons.org/datacommons.js"></script>
   </head>
   <body>
@@ -36,11 +35,13 @@ Example:
 ## Components
 
 - [datacommons-bar](./docs/components/bar.md)
+- [datacommons-highlight](./docs/components/highlight.md)
 - [datacommons-gauge](./docs/components/gauge.md)
 - [datacommons-line](./docs/components/line.md)
 - [datacommons-map](./docs/components/map.md)
 - [datacommons-pie](./docs/components/pie.md)
 - [datacommons-ranking](./docs/components/ranking.md)
+- [datacommons-scatter](./docs/components/scatter.md)
 - [datacommons-slider](./docs/components/slider.md)
 
 ## Examples
@@ -82,7 +83,9 @@ Custom styles are supported through [CSS shadow parts](https://developer.mozilla
 | `series-place-<dcid>`                 | Series data for a particular place. Example: `series-place-geoId\/12` \*                                    | `bar`, `line`. `pie`       |
 | `series-place-<dcid>-variable-<dcid>` | Series data for a particular place and variable. Example: `series-place-geoId\/12-variable-Count_Person` \* | `bar`, `line`              |
 | `series-variable-<dcid>`              | Series data for a variable. Example: `series-place-variable-Count_Person`                                   | `bar`, `line`. `pie`       |
-| `title`                               | Chart title                                                                                                 | All                        |
+| `header`                              | Chart title                                                                                                 | All                        |
+| `subheader`                           | Chart subtitle (if provided in `slot="subheader"`)                                                          | All                        |
+| `footer`                              | Chart footer (if provided in `slot="footer"`)                                                               | All                        |
 | `x-axis`                              | X-axis line                                                                                                 | `bar`, `line`              |
 | `x-axis-text`                         | X-axis label text                                                                                           | `bar`, `line`              |
 | `x-axis-tick`                         | X-axis tick mark                                                                                            | `bar`, `line`              |
@@ -91,12 +94,22 @@ Custom styles are supported through [CSS shadow parts](https://developer.mozilla
 
 _\* Escape forward slashes in `::part()` names_
 
+Additionally, the following css variables are supported:
+
+| CSS variable                | Description                                                | Default            |
+| --------------------------- | ---------------------------------------------------------- | ------------------ |
+| `--dc-headings-font-family` | Font family for web component headings (`h1` through `h6`) | `Google Sans`      |
+| `--dc-font-family`          | Font family for web component body text                    | `Google Sans Text` |
+
 Example:
 
 ```html
 <html>
   <head>
     <style>
+      #styled-map {
+        --dc-headings-font-family: monospace;
+      }
       #styled-map::part(container) {
         border-radius: 10px;
         border: 1px solid #f5f5f5;

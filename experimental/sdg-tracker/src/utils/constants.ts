@@ -17,6 +17,45 @@
 import appConfig from "../config/appConfig.json";
 
 /**
+ * DCID for the Earth/World
+ */
+export const EARTH_PLACE_DCID = "Earth";
+
+/**
+ * Place name for Earth/World
+ */
+export const EARTH_PLACE_NAME = "World";
+
+/**
+ * Country place type
+ */
+export const COUNTRY_PLACE_TYPE = "Country";
+
+export const EARTH_COUNTRIES = [
+  "country/AUS",
+  "country/USA",
+  "country/MEX",
+  "country/BRA",
+  "country/COL",
+  "country/IND",
+  "country/CHN",
+  "country/RUS",
+  "country/NGA",
+  "country/ETH",
+  "country/SOM",
+  "country/KEN",
+  "country/FRA",
+  "country/UKR",
+  "country/DEU",
+  "country/JPN",
+  "country/IDN",
+  "country/PHL",
+  "country/SAU",
+  "country/IRN",
+  "country/KAZ",
+];
+
+/**
  * Variable DCID url parameter
  */
 export const QUERY_PARAM_VARIABLE = "v";
@@ -32,16 +71,21 @@ export const QUERY_PARAM_PLACE = "p";
 export const QUERY_PARAM_QUERY = "q";
 
 /**
- * Root Data Commons variable group
- */
-export const ROOT_VARIABLE_GROUP = "dc/g/Root";
-
-/**
  * Root SDG variable group
  */
-export const ROOT_SDG_VARIABLE_GROUP = "dc/g/SDG";
+export const ROOT_TOPIC = "dc/topic/sdg";
 
 /**
  * Web api root
  */
 export const WEB_API_ENDPOINT = appConfig.webApiEndpoint;
+
+/**
+ * URL to the SDG wheel icon
+ */
+export const SDG_ICON_URL = "./images/datacommons/sdg-wheel-transparent.png";
+
+/**
+ * Number of characters on footnote to show before ...
+ */
+export const FOOTNOTE_CHAR_LIMIT = 100;

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from enum import IntEnum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from shared.lib import detected_variables as dvars
 
@@ -42,12 +42,11 @@ class PlaceDetection:
   query_places_mentioned: List[str]
   places_found: List[Place]
   main_place: Place
-  # List of places with same name as main place and similar to main place.
-  identical_name_as_main_place: List[Place] = field(default_factory=list)
-  similar_to_main_place: List[Place] = field(default_factory=list)
+  peer_places: List[Place] = field(default_factory=list)
   parent_places: List[Place] = field(default_factory=list)
   # This is only of the `child_type` requested.
   child_places: List[Place] = field(default_factory=list)
+  child_place_type: str = None
 
 
 @dataclass
@@ -135,6 +134,10 @@ class ContainedInPlaceType(str, Enum):
   # Typically corresponds to county equivalent
   EU_NUTS_3 = "EurostatNUTS3"
 
+  UN_GEO_REGION = "UNGeoRegion"
+  CONTINENTAL_UNION = "ContinentalUnion"
+  GEO_REGION = "GeoRegion"
+
   # Indicates that the fulfiller should use the contained-in-place-type
   # depending on the place.
   DEFAULT_TYPE = "DefaultType"
@@ -164,19 +167,24 @@ class TimeDeltaType(IntEnum):
   """Indicates whether query refers to an increase or decrease in SV values."""
   INCREASE = 0
   DECREASE = 1
+  CHANGE = 2
 
 
-class SizeType(IntEnum):
-  """SizeType indicates the type of size query specified."""
+class SuperlativeType(IntEnum):
+  """Indicates the type of superlative query specified."""
   NONE = 0
 
-  # BIG is for queries like:
   # "how big ..."
   BIG = 1
-
-  # SMALL is for queries like:
   # "how small ..."
   SMALL = 2
+  # "richest ..."
+  RICH = 3
+  # "poorest ..."
+  POOR = 4
+  # "List of counties in states"
+  # Not strictly superlative, but uses the same technique
+  LIST = 5
 
 
 class ClassificationAttributes(ABC):
@@ -213,25 +221,7 @@ class ComparisonClassificationAttributes(ClassificationAttributes):
 class ContainedInClassificationAttributes(ClassificationAttributes):
   """ContainedIn classification attributes."""
   contained_in_place_type: ContainedInPlaceType
-
-
-@dataclass
-class ClusteringClassificationAttributes(ClassificationAttributes):
-  """Clustering-based Correlation classification attributes."""
-  sv_dcid_1: str
-  sv_dcid_2: str
-
-  # If is_using_clusters is True, that means sv_1 is coming from
-  # cluster_1_svs and sv_2 is coming from cluster_2_svs.
-  # Otherwise, the two SVs could have come from the same cluster.
-  is_using_clusters: bool
-
-  # Words that may have implied clustering, e.g.
-  # "correlation between ...", "related to .."
-  correlation_trigger_words: str
-
-  cluster_1_svs: List[str]
-  cluster_2_svs: List[str]
+  had_default_type: bool = False
 
 
 @dataclass
@@ -253,9 +243,9 @@ class EventClassificationAttributes(ClassificationAttributes):
 
 
 @dataclass
-class OverviewClassificationAttributes(ClassificationAttributes):
-  """Overview classification attributes"""
-  overview_trigger_words: List[str]
+class GeneralClassificationAttributes(ClassificationAttributes):
+  """Simple class for classification based on certain words attributes"""
+  trigger_words: List[str]
 
 
 @dataclass
@@ -269,13 +259,13 @@ class TimeDeltaClassificationAttributes(ClassificationAttributes):
 
 
 @dataclass
-class SizeTypeClassificationAttributes(ClassificationAttributes):
+class SuperlativeClassificationAttributes(ClassificationAttributes):
   """Size classification attributes."""
-  size_types: List[SizeType]
+  superlatives: List[SuperlativeType]
 
   # List of words which made this a size-type query:
   # e.g. "big", "small" etc
-  size_types_trigger_words: List[str]
+  superlatives_trigger_words: List[str]
 
 
 class QCmpType(str, Enum):
@@ -323,6 +313,23 @@ class QuantityClassificationAttributes(ClassificationAttributes):
     return f'({self.qrange} idx:{self.idx})'
 
 
+@dataclass
+class Date:
+  """Represents a range of two numeric quantities."""
+  prep: str
+  year: int
+  month: Optional[int] = 0
+  year_span: Optional[int] = 0
+
+  def __str__(self):
+    return f'{self.year} - {self.month} | {self.year_span}'
+
+
+@dataclass
+class DateClassificationAttributes(ClassificationAttributes):
+  dates: List[Date]
+
+
 class ClassificationType(IntEnum):
   OTHER = 0
   SIMPLE = 1
@@ -334,8 +341,11 @@ class ClassificationType(IntEnum):
   TIME_DELTA = 8
   EVENT = 9
   OVERVIEW = 10
-  SIZE_TYPE = 11
-  UNKNOWN = 13
+  SUPERLATIVE = 11
+  DATE = 12
+  ANSWER_PLACES_REFERENCE = 13
+  PER_CAPITA = 14
+  UNKNOWN = 15
 
 
 @dataclass
@@ -357,6 +367,8 @@ class ActualDetectorType(str, Enum):
   HybridLLMPlace = "Hybrid - LLM Fallback (Place)"
   # Fallback to LLM for variable detection only
   HybridLLMVar = "Hybrid - LLM Fallback (Variable)"
+  # LLM for safety check only
+  HybridLLMSafety = "Hybrid - LLM Safety Check"
   # The case of no detector involved.
   NOP = "Detector unnecessary"
 
@@ -366,6 +378,13 @@ class RequestedDetectorType(str, Enum):
   Heuristic = "heuristic"
   LLM = "llm"
   Hybrid = "hybrid"
+  HybridSafetyCheck = "hybridsafety"
+
+
+class LlmApiType(str, Enum):
+  Chat = "chat"
+  Text = "text"
+  Nop = "nop"
 
 
 class PlaceDetectorType(str, Enum):
@@ -386,5 +405,6 @@ class Detection:
   svs_detected: SVDetection
   classifications: List[NLClassifier]
   llm_resp: Dict = field(default_factory=dict)
-  detector: ActualDetectorType = ActualDetectorType.Heuristic
-  place_detector: PlaceDetectorType = PlaceDetectorType.NER
+  detector: ActualDetectorType = ActualDetectorType.HybridHeuristic
+  place_detector: PlaceDetectorType = PlaceDetectorType.DC
+  llm_api: LlmApiType = LlmApiType.Nop

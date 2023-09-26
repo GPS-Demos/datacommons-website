@@ -26,10 +26,11 @@
 {% block head %}
 <link rel="stylesheet" href={{url_for('static', filename='css/nl_interface.min.css', t=config['VERSION'])}} >
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
 {% endblock %}
 
 {% block content %}
-<div id="metadata" class="d-none" data-website-hash="{{ website_hash }}" data-placeholder-query="{{ placeholder_query }}" data-index="{{ index_type }}"></div>
+<div id="metadata" class="d-none" data-website-hash="{{ website_hash }}" data-placeholder-query="{{ placeholder_query }}" data-index="{{ index_type }}" data-hide-debug="{{ config['HIDE_DEBUG'] }}"></div>
 <div id="dc-nl-interface"></div>
 {% endblock %}
 {% block footer %}

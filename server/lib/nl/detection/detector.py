@@ -16,8 +16,8 @@
 from typing import Dict, List
 
 from flask import current_app
-from markupsafe import escape
 
+from server.lib.nl.common import serialize
 from server.lib.nl.common import utils
 from server.lib.nl.common.counters import Counters
 from server.lib.nl.common.utterance import Utterance
@@ -26,15 +26,19 @@ from server.lib.nl.detection import llm_detector
 from server.lib.nl.detection import llm_fallback
 from server.lib.nl.detection import place
 from server.lib.nl.detection import types
+from server.lib.nl.detection.place_utils import get_similar
 from server.lib.nl.detection.types import ActualDetectorType
+from server.lib.nl.detection.types import LlmApiType
 from server.lib.nl.detection.types import PlaceDetection
 from server.lib.nl.detection.types import PlaceDetectorType
 from server.lib.nl.detection.types import RequestedDetectorType
+from server.lib.nl.detection.utils import get_multi_sv
 import shared.lib.detected_variables as dutils
 
 _PALM_API_DETECTORS = [
     RequestedDetectorType.LLM.value,
     RequestedDetectorType.Hybrid.value,
+    RequestedDetectorType.HybridSafetyCheck.value,
 ]
 
 MAX_CHILD_LIMIT = 50
@@ -48,7 +52,8 @@ MAX_CHILD_LIMIT = 50
 #
 def detect(detector_type: str, place_detector_type: PlaceDetectorType,
            original_query: str, no_punct_query: str, prev_utterance: Utterance,
-           embeddings_index_type: str, query_detection_debug_logs: Dict,
+           embeddings_index_type: str, llm_api_type: LlmApiType,
+           query_detection_debug_logs: Dict,
            counters: Counters) -> types.Detection:
   #
   # In the absence of the PALM API key, fallback to heuristic.
@@ -58,24 +63,26 @@ def detect(detector_type: str, place_detector_type: PlaceDetectorType,
     counters.err('failed_palm_keynotfound', '')
     detector_type = RequestedDetectorType.Heuristic.value
 
+  if (detector_type in _PALM_API_DETECTORS and
+      'PALM_PROMPT_TEXT' not in current_app.config):
+    counters.err('failed_palm_promptnotfound', '')
+    detector_type = RequestedDetectorType.Heuristic.value
+
   #
   # LLM Detection.
   #
   if detector_type == RequestedDetectorType.LLM.value:
     llm_detection = llm_detector.detect(original_query, prev_utterance,
-                                        embeddings_index_type,
+                                        embeddings_index_type, llm_api_type,
                                         query_detection_debug_logs, counters)
     return llm_detection
 
   #
   # Heuristic detection.
   #
-  heuristic_detection = heuristic_detector.detect(place_detector_type,
-                                                  str(escape(original_query)),
-                                                  no_punct_query,
-                                                  embeddings_index_type,
-                                                  query_detection_debug_logs,
-                                                  counters)
+  heuristic_detection = heuristic_detector.detect(
+      place_detector_type, original_query, no_punct_query,
+      embeddings_index_type, query_detection_debug_logs, counters)
   if detector_type == RequestedDetectorType.Heuristic.value:
     return heuristic_detection
 
@@ -89,9 +96,22 @@ def detect(detector_type: str, place_detector_type: PlaceDetectorType,
     return heuristic_detection
 
   counters.err('warning_llm_fallback', '')
+
+  if detector_type == RequestedDetectorType.HybridSafetyCheck.value:
+    heuristic_detection.detector = ActualDetectorType.HybridLLMSafety
+    heuristic_detection.llm_api = llm_api_type
+    if llm_detector.check_safety(original_query, llm_api_type, counters):
+      return heuristic_detection
+    else:
+      counters.err('info_llm_blocked', '')
+      return None
+
   llm_detection = llm_detector.detect(original_query, prev_utterance,
-                                      embeddings_index_type,
+                                      embeddings_index_type, llm_api_type,
                                       query_detection_debug_logs, counters)
+  if not llm_detection:
+    counters.err('info_llm_blocked', '')
+    return None
 
   if llm_type == llm_fallback.NeedLLM.Fully:
     # Completely use LLM's detections.
@@ -107,22 +127,22 @@ def detect(detector_type: str, place_detector_type: PlaceDetectorType,
     detection = heuristic_detection
     detection.places_detected = llm_detection.places_detected
     detection.detector = ActualDetectorType.HybridLLMPlace
-
+  detection.llm_api = llm_api_type
   return detection
 
 
 #
 # Constructor a Detection object given DCID inputs.
 #
-def construct(entities: List[str], vars: List[str], child_type: str,
-              cmp_entities: List[str], cmp_vars: List[str], debug_logs: Dict,
-              counters: Counters) -> types.Detection:
+def construct_for_explore(entities: List[str], vars: List[str], child_type: str,
+                          cmp_entities: List[str], cmp_vars: List[str],
+                          in_classifications: List[Dict], debug_logs: Dict,
+                          counters: Counters) -> types.Detection:
   all_entities = entities + cmp_entities
-  parent_map = {p: [] for p in all_entities}
-  places = place.get_place_from_dcids(all_entities, debug_logs, parent_map)
+  places, parent_map = place.get_place_from_dcids(all_entities, debug_logs)
   if not places:
     counters.err('failed_detection_unabletofinddcids', all_entities)
-    return None, 'No places found!'
+    return None, 'No places found in the query!'
 
   # Unused fillers.
   var_query = ';'.join(vars)
@@ -133,6 +153,7 @@ def construct(entities: List[str], vars: List[str], child_type: str,
 
   # For place-comparison (bar charts only), we don't need child places.
   # So we can save on the existence checks, etc.
+  had_default_type = False
   if not cmp_entities:
     if child_type:
       if not any([child_type == x.value for x in types.ContainedInPlaceType]):
@@ -140,13 +161,18 @@ def construct(entities: List[str], vars: List[str], child_type: str,
         return None, f'Bad childEntityType value {child_type}!'
       child_type = types.ContainedInPlaceType(child_type)
     if not child_type or child_type == types.ContainedInPlaceType.DEFAULT_TYPE:
-      child_type = utils.get_default_child_place_type(places[0], is_nl=False)
+      child_type = utils.get_default_child_place_type(places[0])
+      had_default_type = True
   else:
     child_type = None
   if child_type:
+    # This is important so that the child places correspond to AA1/AA2 regardless
+    # of what the user has asked for (district, state)
+    child_type = utils.admin_area_equiv_for_place(child_type, places[0])
     c = types.NLClassifier(type=types.ClassificationType.CONTAINED_IN,
                            attributes=types.ContainedInClassificationAttributes(
-                               contained_in_place_type=child_type))
+                               contained_in_place_type=child_type,
+                               had_default_type=had_default_type))
     classifications.append(c)
 
   if cmp_entities:
@@ -160,20 +186,26 @@ def construct(entities: List[str], vars: List[str], child_type: str,
                                comparison_trigger_words=[]))
     classifications.append(c)
 
-  main_dcid = places[0].dcid
-  child_places = []
-  if child_type:
-    child_places = utils.get_all_child_places(main_dcid, child_type.value,
-                                              counters)
-    child_places = child_places[:MAX_CHILD_LIMIT]
+  # Append the classifications we got, but after trimming the ones above.
+  classifications.extend(
+      utils.trim_classifications(
+          serialize.dict_to_classification(in_classifications),
+          set([
+              types.ClassificationType.CONTAINED_IN,
+              types.ClassificationType.COMPARISON,
+              types.ClassificationType.CORRELATION
+          ])))
 
+  main_dcid = places[0].dcid
   place_detection = PlaceDetection(query_original=query,
                                    query_without_place_substr=var_query,
                                    query_places_mentioned=all_entities,
                                    places_found=places,
                                    main_place=places[0],
                                    parent_places=parent_map.get(main_dcid, []),
-                                   child_places=child_places)
+                                   peer_places=[],
+                                   child_places=[])
+  add_child_and_peer_places(places, child_type, counters, place_detection)
 
   if not cmp_entities and cmp_vars:
     # Multi SV case.
@@ -182,7 +214,7 @@ def construct(entities: List[str], vars: List[str], child_type: str,
                                          svs=vars,
                                          scores=[0.51] * len(vars),
                                          sv2sentences={}),
-                                     multi_sv=_get_multi_sv(vars, cmp_vars))
+                                     multi_sv=get_multi_sv(vars, cmp_vars, 1.0))
   else:
     sv_detection = types.SVDetection(query='',
                                      single_sv=dutils.VarCandidates(
@@ -199,15 +231,57 @@ def construct(entities: List[str], vars: List[str], child_type: str,
                          place_detector=PlaceDetectorType.NOP), None
 
 
-def _get_multi_sv(vars: List[str],
-                  cmp_vars: List[str]) -> dutils.MultiVarCandidates:
-  return dutils.MultiVarCandidates(candidates=[
-      dutils.MultiVarCandidate(parts=[
-          dutils.MultiVarCandidatePart(
-              query_part='var1', svs=vars, scores=[1.0] * len(vars)),
-          dutils.MultiVarCandidatePart(
-              query_part='var2', svs=cmp_vars, scores=[1.0] * len(cmp_vars))
-      ],
-                               aggregate_score=1.0,
-                               delim_based=True)
-  ])
+# In this flow, we already have the Utterance with detection, just set it up
+# for explore flow.  This involves:
+# (1) Setting default child-type.
+# (2) Setting child and peer places.
+def setup_for_explore(uttr: Utterance):
+  if not uttr.places:
+    return
+  main_place = uttr.places[0]
+
+  had_default_type = False
+  child_type = utils.get_contained_in_type(uttr)
+  if not child_type or child_type == types.ContainedInPlaceType.DEFAULT_TYPE:
+    child_type = utils.get_default_child_place_type(main_place)
+    had_default_type = True
+
+  if child_type:
+    # This is important so that the child places correspond to AA1/AA2 regardless
+    # of what the user has asked for (district, state)
+    child_type = utils.admin_area_equiv_for_place(child_type, main_place)
+    cls = [
+        types.NLClassifier(type=types.ClassificationType.CONTAINED_IN,
+                           attributes=types.ContainedInClassificationAttributes(
+                               contained_in_place_type=child_type,
+                               had_default_type=had_default_type))
+    ]
+    cls.extend(
+        utils.trim_classifications(uttr.classifications,
+                                   set([types.ClassificationType.CONTAINED_IN
+                                       ])))
+    uttr.classifications = cls
+
+  add_child_and_peer_places(uttr.places, child_type, uttr.counters,
+                            uttr.detection.places_detected)
+
+
+def add_child_and_peer_places(places: List[types.Place],
+                              child_type: types.ContainedInPlaceType,
+                              counters: Counters, detection: PlaceDetection):
+  if not places or len(places) > 1:
+    return
+
+  main_dcid = places[0].dcid
+  child_places = []
+  if child_type and child_type.value != places[0].place_type:
+    detection.child_place_type = child_type.value
+    try:
+      child_places = utils.get_all_child_places(main_dcid, child_type.value,
+                                                counters)
+      detection.child_places = child_places[:MAX_CHILD_LIMIT]
+    except Exception as e:
+      detection.child_places = []
+      counters.err('failed_child_places_fetch', str(e))
+
+  detection.peer_places = get_similar(places[0])

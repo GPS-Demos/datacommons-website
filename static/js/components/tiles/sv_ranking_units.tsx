@@ -29,7 +29,8 @@ import {
 } from "../../types/ranking_unit_types";
 import { RankingTileSpec } from "../../types/subject_page_proto_types";
 import { getHash } from "../../utils/app/visualization_utils";
-import { formatString } from "../../utils/tile_utils";
+import { formatString, getSourcesJsx } from "../../utils/tile_utils";
+import { NlChartFeedback } from "../nl_feedback";
 import { RankingUnit } from "../ranking_unit";
 import { ChartFooter } from "./chart_footer";
 
@@ -47,11 +48,13 @@ interface SvRankingUnitsProps {
     svNames: string[]
   ) => void;
   statVar: string;
+  tileId: string;
   title?: string;
   showExploreMore?: boolean;
   apiRoot?: string;
   hideFooter?: boolean;
   onHoverToggled?: (placeDcid: string, hover: boolean) => void;
+  errorMsg?: string;
 }
 
 /**
@@ -95,7 +98,7 @@ export function SvRankingUnits(props: SvRankingUnitsProps): JSX.Element {
 
   return (
     <React.Fragment>
-      {rankingMetadata.showHighestLowest ? (
+      {rankingMetadata.showHighestLowest || props.errorMsg ? (
         <div
           className={`ranking-unit-container ${ASYNC_ELEMENT_CLASS} highest-ranking-container`}
         >
@@ -105,17 +108,22 @@ export function SvRankingUnits(props: SvRankingUnitsProps): JSX.Element {
             rankingGroup,
             rankingMetadata,
             true,
+            props.apiRoot,
             highestRankingUnitRef,
-            props.onHoverToggled
+            props.onHoverToggled,
+            props.errorMsg
           )}
           {!props.hideFooter && (
             <ChartFooter
-              sources={rankingGroup.sources}
-              handleEmbed={() => handleEmbed(true)}
-              exploreMoreUrl={
-                props.showExploreMore ? getExploreMoreUrl(props, true) : ""
+              handleEmbed={props.errorMsg ? null : () => handleEmbed(true)}
+              exploreLink={
+                props.showExploreMore && !props.errorMsg
+                  ? getExploreLink(props, true)
+                  : null
               }
-            />
+            >
+              <NlChartFeedback id={props.tileId} />
+            </ChartFooter>
           )}
         </div>
       ) : (
@@ -130,17 +138,19 @@ export function SvRankingUnits(props: SvRankingUnitsProps): JSX.Element {
                 rankingGroup,
                 rankingMetadata,
                 true,
+                props.apiRoot,
                 highestRankingUnitRef,
                 props.onHoverToggled
               )}
               {!props.hideFooter && (
                 <ChartFooter
-                  sources={rankingGroup.sources}
                   handleEmbed={() => handleEmbed(true)}
-                  exploreMoreUrl={
-                    props.showExploreMore ? getExploreMoreUrl(props, true) : ""
+                  exploreLink={
+                    props.showExploreMore ? getExploreLink(props, true) : null
                   }
-                />
+                >
+                  <NlChartFeedback id={props.tileId} />
+                </ChartFooter>
               )}
             </div>
           )}
@@ -154,17 +164,19 @@ export function SvRankingUnits(props: SvRankingUnitsProps): JSX.Element {
                 rankingGroup,
                 rankingMetadata,
                 false,
+                props.apiRoot,
                 lowestRankingUnitRef,
                 props.onHoverToggled
               )}
               {!props.hideFooter && (
                 <ChartFooter
-                  sources={rankingGroup.sources}
                   handleEmbed={() => handleEmbed(false)}
-                  exploreMoreUrl={
-                    props.showExploreMore ? getExploreMoreUrl(props, false) : ""
+                  exploreLink={
+                    props.showExploreMore ? getExploreLink(props, false) : null
                   }
-                />
+                >
+                  <NlChartFeedback id={props.tileId} />
+                </ChartFooter>
               )}
             </div>
           )}
@@ -221,8 +233,10 @@ export function getRankingUnit(
   rankingGroup: RankingGroup,
   rankingMetadata: RankingTileSpec,
   isHighest: boolean,
+  apiRoot: string,
   rankingUnitRef?: RefObject<HTMLDivElement>,
-  onHoverToggled?: (placeDcid: string, hover: boolean) => void
+  onHoverToggled?: (placeDcid: string, hover: boolean) => void,
+  errorMsg?: string
 ): JSX.Element {
   const rankingCount = rankingMetadata.rankingCount || RANKING_COUNT;
   const topPoints = isHighest
@@ -259,14 +273,17 @@ export function getRankingUnit(
         rankingMetadata.showMultiColumn ? rankingGroup.svName : undefined
       }
       onHoverToggled={onHoverToggled}
+      headerChild={errorMsg ? null : getSourcesJsx(rankingGroup.sources)}
+      errorMsg={errorMsg}
+      apiRoot={apiRoot}
     />
   );
 }
 
-function getExploreMoreUrl(
+function getExploreLink(
   props: SvRankingUnitsProps,
   isHighest: boolean
-): string {
+): { url: string; displayText: string } {
   const rankingGroup = props.rankingData[props.statVar];
   const rankingCount = props.rankingMetadata.rankingCount || RANKING_COUNT;
   const places = isHighest
@@ -281,5 +298,8 @@ function getExploreMoreUrl(
     [{ dcid: props.statVar, info: {} }],
     {}
   );
-  return `${props.apiRoot || ""}${URL_PATH}#${hash}`;
+  return {
+    displayText: "Timeline Tool",
+    url: `${props.apiRoot || ""}${URL_PATH}#${hash}`,
+  };
 }

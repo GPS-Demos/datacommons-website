@@ -18,8 +18,6 @@
  * Component for rendering a bar tile.
  */
 
-import axios from "axios";
-import * as d3 from "d3";
 import _ from "lodash";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -32,7 +30,7 @@ import {
 } from "../../chart/draw_bar";
 import { SortType } from "../../chart/types";
 import { URL_PATH } from "../../constants/app/visualization_constants";
-import { PointApiResponse } from "../../shared/stat_types";
+import { PointApiResponse, SeriesApiResponse } from "../../shared/stat_types";
 import { NamedTypedPlace, StatVarSpec } from "../../shared/types";
 import { RankingPoint } from "../../types/ranking_unit_types";
 import { BarTileSpec } from "../../types/subject_page_proto_types";
@@ -40,12 +38,23 @@ import {
   getContextStatVar,
   getHash,
 } from "../../utils/app/visualization_utils";
-import { stringifyFn } from "../../utils/axios";
 import { dataGroupsToCsv } from "../../utils/chart_csv_utils";
+import {
+  getPoint,
+  getPointWithin,
+  getSeries,
+  getSeriesWithin,
+} from "../../utils/data_fetch_utils";
 import { getPlaceNames } from "../../utils/place_utils";
-import { getUnit } from "../../utils/stat_metadata_utils";
 import { getDateRange } from "../../utils/string_utils";
-import { getStatVarNames, ReplacementStrings } from "../../utils/tile_utils";
+import {
+  getDenomInfo,
+  getNoDataErrorMsg,
+  getStatFormat,
+  getStatVarNames,
+  ReplacementStrings,
+  showError,
+} from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
 import { useDrawOnResize } from "./use_draw_on_resize";
 
@@ -53,7 +62,6 @@ const NUM_PLACES = 7;
 
 const FILTER_STAT_VAR = "Count_Person";
 const DEFAULT_X_LABEL_LINK_ROOT = "/place/";
-const EXPLORE_MORE_BASE_URL = "/tools/timeline";
 
 // TODO (juliawu): Refactor the "optional" specs into BarTileSpec. This will
 //                 also allow BarTilePropType to match the structure of the
@@ -70,14 +78,20 @@ export interface BarTilePropType {
   // A list of specific colors to use
   colors?: string[];
   enclosedPlaceType: string;
+  // Text to show in footer
+  footnote?: string;
   horizontal?: boolean;
   id: string;
   // Maximum number of places to display
   maxPlaces?: number;
+  // Maximum number of variables to display
+  maxVariables?: number;
   // The primary place of the page (disaster, topic, nl)
   place: NamedTypedPlace;
   // sort order
   sort?: SortType;
+  // Set to true to draw tooltip when hovering over bars
+  showTooltipOnHover?: boolean;
   // Set to true to draw as a stacked chart instead of a grouped chart
   stacked?: boolean;
   statVarSpec: StatVarSpec[];
@@ -92,6 +106,10 @@ export interface BarTilePropType {
   yAxisMargin?: number;
   // Whether or not to show the explore more button.
   showExploreMore?: boolean;
+  // Function used to get processed stat var names.
+  getProcessedSVNameFn?: (name: string) => string;
+  // The property to use to get place names.
+  placeNameProp?: string;
 }
 
 export interface BarChartData {
@@ -100,6 +118,8 @@ export interface BarChartData {
   unit: string;
   dateRange: string;
   props: BarTilePropType;
+  statVarOrder: string[];
+  errorMsg: string;
 }
 
 export function BarTile(props: BarTilePropType): JSX.Element {
@@ -138,7 +158,9 @@ export function BarTile(props: BarTilePropType): JSX.Element {
         barChartData ? () => dataGroupsToCsv(barChartData.dataGroup) : null
       }
       isInitialLoading={_.isNull(barChartData)}
-      exploreMoreUrl={props.showExploreMore ? getExploreMoreUrl(props) : ""}
+      exploreLink={props.showExploreMore ? getExploreLink(props) : null}
+      hasErrorMsg={barChartData && !!barChartData.errorMsg}
+      footnote={props.footnote}
     >
       <div
         id={props.id}
@@ -162,43 +184,54 @@ export function getReplacementStrings(
 }
 
 export const fetchData = async (props: BarTilePropType) => {
-  const statVars = [];
-  for (const spec of props.statVarSpec) {
-    statVars.push(spec.statVar);
-    if (spec.denom) {
-      statVars.push(spec.denom);
-    }
-  }
-  // Fetch populations.
-  statVars.push(FILTER_STAT_VAR);
-  let url: string;
-  let params;
+  const statSvs = props.statVarSpec
+    .map((spec) => spec.statVar)
+    .filter((sv) => !!sv);
+  const denomSvs = props.statVarSpec
+    .map((spec) => spec.denom)
+    .filter((sv) => !!sv);
+  const statVars = [statSvs, FILTER_STAT_VAR].flat(1);
+  let statPromise: Promise<PointApiResponse>;
+  let denomPromise: Promise<SeriesApiResponse>;
   if (!_.isEmpty(props.comparisonPlaces)) {
-    url = `${props.apiRoot || ""}/api/observations/point`;
-    params = {
-      entities: props.comparisonPlaces,
-      variables: statVars,
-    };
+    statPromise = getPoint(
+      props.apiRoot,
+      props.comparisonPlaces,
+      statVars,
+      "",
+      [statSvs]
+    );
+    denomPromise = _.isEmpty(denomSvs)
+      ? Promise.resolve(null)
+      : getSeries(props.apiRoot, props.comparisonPlaces, denomSvs);
   } else {
-    url = `${props.apiRoot || ""}/api/observations/point/within`;
-    params = {
-      parentEntity: props.place.dcid,
-      childType: props.enclosedPlaceType,
-      variables: statVars,
-    };
+    statPromise = getPointWithin(
+      props.apiRoot,
+      props.enclosedPlaceType,
+      props.place.dcid,
+      statVars,
+      "",
+      [statSvs]
+    );
+    denomPromise = _.isEmpty(denomSvs)
+      ? Promise.resolve(null)
+      : getSeriesWithin(
+          props.apiRoot,
+          props.place.dcid,
+          props.enclosedPlaceType,
+          denomSvs
+        );
   }
   try {
-    const resp = await axios.get<PointApiResponse>(url, {
-      params,
-      paramsSerializer: stringifyFn,
-    });
+    const statResp = await statPromise;
+    const denomResp = await denomPromise;
 
     // Find the most populated places.
     const popPoints: RankingPoint[] = [];
-    for (const place in resp.data.data[FILTER_STAT_VAR]) {
+    for (const place in statResp.data[FILTER_STAT_VAR]) {
       popPoints.push({
         placeDcid: place,
-        value: resp.data.data[FILTER_STAT_VAR][place].value,
+        value: statResp.data[FILTER_STAT_VAR][place].value,
       });
     }
     // Optionally sort by ascending/descending population
@@ -210,36 +243,47 @@ export const fetchData = async (props: BarTilePropType) => {
 
     const placeNames = await getPlaceNames(
       Array.from(popPoints).map((x) => x.placeDcid),
-      props.apiRoot
+      props.apiRoot,
+      props.placeNameProp
     );
     const statVarDcidToName = await getStatVarNames(
       props.statVarSpec,
-      props.apiRoot
+      props.apiRoot,
+      props.getProcessedSVNameFn
     );
     return rawToChart(
       props,
-      resp.data,
+      statResp,
+      denomResp,
       popPoints,
       placeNames,
       statVarDcidToName
     );
   } catch (error) {
+    console.log(error);
     return null;
   }
 };
 
 function rawToChart(
   props: BarTilePropType,
-  rawData: PointApiResponse,
+  statData: PointApiResponse,
+  denomData: SeriesApiResponse,
   popPoints: RankingPoint[],
   placeNames: Record<string, string>,
   statVarNames: Record<string, string>
 ): BarChartData {
-  const raw = _.cloneDeep(rawData);
+  const raw = _.cloneDeep(statData);
   const dataGroups: DataGroup[] = [];
   const sources = new Set<string>();
+  // Track original order of stat vars in props, to maintain 1:1 pairing of
+  // colors to stat var labels even after sorting
+  const statVarOrder = props.statVarSpec.map(
+    (spec) => statVarNames[spec.statVar]
+  );
 
-  let unit = "";
+  // Assume all stat var specs will use the same unit and scaling.
+  const { unit, scaling } = getStatFormat(props.statVarSpec[0], statData);
   const dates: Set<string> = new Set();
   for (const point of popPoints) {
     const placeDcid = point.placeDcid;
@@ -254,20 +298,23 @@ function rawToChart(
         label: statVarNames[statVar],
         value: stat.value || 0,
         dcid: placeDcid,
+        date: stat.date,
       };
       dates.add(stat.date);
       if (raw.facets[stat.facet]) {
         sources.add(raw.facets[stat.facet].provenanceUrl);
-        const svUnit = getUnit(raw.facets[stat.facet]);
-        unit = unit || svUnit;
       }
-      if (spec.denom && spec.denom in raw.data) {
-        const denomStat = raw.data[spec.denom][placeDcid];
-        dataPoint.value /= denomStat.value;
-        sources.add(raw.facets[denomStat.facet].provenanceUrl);
+      if (spec.denom) {
+        const denomInfo = getDenomInfo(spec, denomData, placeDcid, stat.date);
+        if (!denomInfo) {
+          // skip this data point because missing denom data.
+          continue;
+        }
+        dataPoint.value /= denomInfo.value;
+        sources.add(denomInfo.source);
       }
-      if (spec.scaling) {
-        dataPoint.value *= spec.scaling;
+      if (scaling) {
+        dataPoint.value *= scaling;
       }
       dataPoints.push(dataPoint);
     }
@@ -280,24 +327,55 @@ function rawToChart(
       );
     }
   }
-  if (!_.isEmpty(props.statVarSpec)) {
-    unit = props.statVarSpec[0].unit || unit;
-  }
   // Optionally sort ascending/descending by value
   if (props.sort === "ascending" || props.sort === "descending") {
-    dataGroups.sort(
-      (a, b) =>
-        (d3.sum(a.value.map((v) => v.value)) -
-          d3.sum(b.value.map((v) => v.value))) *
-        (props.sort === "ascending" ? 1 : -1)
-    );
+    if (props.statVarSpec.length == 1) {
+      // if only one variable, sort by places
+      dataGroups.sort(function (a, b): number {
+        if (!_.isEmpty(a.value) && !_.isEmpty(b.value)) {
+          return (
+            (a.value[0].value - b.value[0].value) *
+            (props.sort === "ascending" ? 1 : -1)
+          );
+        }
+        return 0;
+      });
+    } else if (!_.isEmpty(dataGroups)) {
+      // sort variables in first group by value
+      dataGroups[0].value.sort(
+        (a, b) => (a.value - b.value) * (props.sort === "ascending" ? 1 : -1)
+      );
+
+      // use order of first group for all other groups
+      if (dataGroups.length > 1) {
+        const firstGroupLabels = dataGroups[0].value.map((dp) => dp.label);
+        dataGroups.slice(1).forEach((dataGroup) => {
+          dataGroup.value.sort(
+            (a, b) =>
+              firstGroupLabels.indexOf(a.label) -
+              firstGroupLabels.indexOf(b.label)
+          );
+        });
+      }
+    }
   }
+
+  if (props.maxVariables) {
+    dataGroups.forEach((dataGroup) => {
+      dataGroup.value = dataGroup.value.slice(0, props.maxVariables);
+    });
+  }
+  const errorMsg = _.isEmpty(dataGroups)
+    ? getNoDataErrorMsg(props.statVarSpec)
+    : "";
   return {
     dataGroup: dataGroups.slice(0, props.maxPlaces || NUM_PLACES),
     sources,
     dateRange: getDateRange(Array.from(dates)),
     unit,
     props,
+    statVarOrder,
+    errorMsg,
   };
 }
 
@@ -307,6 +385,10 @@ export function draw(
   svgContainer: HTMLDivElement,
   svgWidth?: number
 ): void {
+  if (chartData.errorMsg) {
+    showError(chartData.errorMsg, svgContainer);
+    return;
+  }
   if (props.horizontal) {
     drawHorizontalBarChart(
       svgContainer,
@@ -316,6 +398,8 @@ export function draw(
         colors: props.colors,
         lollipop: props.useLollipop,
         stacked: props.stacked,
+        showTooltipOnHover: props.showTooltipOnHover,
+        statVarColorOrder: chartData.statVarOrder,
         style: {
           barHeight: props.barHeight,
           yAxisMargin: props.yAxisMargin,
@@ -334,6 +418,8 @@ export function draw(
         {
           colors: props.colors,
           lollipop: props.useLollipop,
+          showTooltipOnHover: props.showTooltipOnHover,
+          statVarColorOrder: chartData.statVarOrder,
           unit: chartData.unit,
         }
       );
@@ -347,6 +433,8 @@ export function draw(
         {
           colors: props.colors,
           lollipop: props.useLollipop,
+          showTooltipOnHover: props.showTooltipOnHover,
+          statVarColorOrder: chartData.statVarOrder,
           unit: chartData.unit,
         }
       );
@@ -354,13 +442,19 @@ export function draw(
   }
 }
 
-function getExploreMoreUrl(props: BarTilePropType): string {
+function getExploreLink(props: BarTilePropType): {
+  displayText: string;
+  url: string;
+} {
   const hash = getHash(
     VisType.TIMELINE,
-    [...props.comparisonPlaces, props.place.dcid],
+    props.comparisonPlaces || [props.place.dcid],
     "",
     props.statVarSpec.map((spec) => getContextStatVar(spec)),
     {}
   );
-  return `${props.apiRoot || ""}${URL_PATH}#${hash}`;
+  return {
+    displayText: "Timeline Tool",
+    url: `${props.apiRoot || ""}${URL_PATH}#${hash}`,
+  };
 }

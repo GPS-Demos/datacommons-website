@@ -39,7 +39,7 @@ def _add_classification_heuristics(set_strings: Set[str]) -> None:
     """
   for (ctype, v) in constants.QUERY_CLASSIFICATION_HEURISTICS.items():
     # Skip events since we want those to match SVs too!
-    if ctype == "Event":
+    if ctype == "Event" or ctype == "Superlative":
       continue
     if isinstance(v, list):
       # If 'v' is a list, add all the words.
@@ -112,10 +112,15 @@ def combine_stop_words() -> Set[str]:
 
 def remove_punctuations(s, include_comma=False):
   s = s.replace('\'s', '')
+
+  # First replace all periods (.) which cannot be considered decimals.
+  s = re.sub(r'(?<!\d)\.(?!\d)', ' ', s)
+
+  # Now replace all punctuation which is not a period (.)
   if include_comma:
-    s = re.sub(r'[^\w\s,]', ' ', s)
+    s = re.sub(r'[^\w\s,.]', ' ', s)
   else:
-    s = re.sub(r'[^\w\s]', ' ', s)
+    s = re.sub(r'[^\w\s.]', ' ', s)
   return " ".join(s.split())
 
 

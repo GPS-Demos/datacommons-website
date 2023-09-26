@@ -17,15 +17,18 @@
 import { css, CSSResult, LitElement, unsafeCSS } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import _ from "lodash";
-import React from "react";
-import ReactDOM from "react-dom";
 
 import tilesCssString from "!!raw-loader!sass-loader!../css/tiles.scss";
 
 import { SortType } from "../js/chart/types";
 import { BarTile, BarTilePropType } from "../js/components/tiles/bar_tile";
 import { DEFAULT_API_ENDPOINT } from "./constants";
-import { convertArrayAttribute } from "./utils";
+import {
+  convertArrayAttribute,
+  convertBooleanAttribute,
+  createWebComponentElement,
+  getVariableNameProcessingFn,
+} from "./utils";
 
 /**
  * Web component for rendering a bar chart tile.
@@ -114,13 +117,13 @@ export class DatacommonsBarComponent extends LitElement {
   /**
    * Optional: Render bars horizontally instead of vertically
    */
-  @property({ type: Boolean })
+  @property({ type: Boolean, converter: convertBooleanAttribute })
   horizontal?: boolean;
 
   /**
    * Optional: Draw as a lollipop chart instead of bars
    */
-  @property({ type: Boolean })
+  @property({ type: Boolean, converter: convertBooleanAttribute })
   lollipop: boolean;
 
   /**
@@ -129,6 +132,13 @@ export class DatacommonsBarComponent extends LitElement {
    */
   @property({ type: Number })
   maxPlaces?: number;
+
+  /**
+   * Optional: Maximum number of variables per place to display
+   * If not provided, shows all variables.
+   */
+  @property({ type: Number })
+  maxVariables?: number;
 
   /**
    * DCID of the parent place
@@ -153,7 +163,7 @@ export class DatacommonsBarComponent extends LitElement {
   /**
    * Optional: Draw as a stacked chart instead of grouped chart
    */
-  @property({ type: Boolean })
+  @property({ type: Boolean, converter: convertBooleanAttribute })
   stacked?: boolean;
 
   /**
@@ -167,7 +177,7 @@ export class DatacommonsBarComponent extends LitElement {
    * List of DCIDs of the statistical variable(s) to plot values for
    */
   @property({ type: Array<string>, converter: convertArrayAttribute })
-  variables?: string[];
+  variables!: string[];
 
   /**
    * Optional: Y axis margin to fit the axis label text.
@@ -175,6 +185,30 @@ export class DatacommonsBarComponent extends LitElement {
    */
   @property({ type: Number })
   yAxisMargin?: number;
+
+  // Optional: Whether to show the "explore" link.
+  // Default: false
+  @property({ type: Boolean, converter: convertBooleanAttribute })
+  showExploreMore: boolean;
+
+  // Optional: Regex used to process variable names
+  // If provided, will only use the first case of the variable name that matches
+  // this regex.
+  // For example, if the variableNameRegex is "(.*?)(?=:)", only the part before
+  // a ":" will be used for variable names. So "variable 1: test" will become
+  // "variable 1".
+  @property()
+  variableNameRegex!: string;
+
+  // Optional: default variable name used with variableNameRegex.
+  // If provided and no variable name can be extracted using variableNameRegex,
+  // use this as the variable name.
+  @property()
+  defaultVariableName!: string;
+
+  // Optional: Property to use to get place names.
+  @property()
+  placeNameProp!: string;
 
   render(): HTMLElement {
     const statVarDcids: string[] = this.variables;
@@ -198,11 +232,14 @@ export class DatacommonsBarComponent extends LitElement {
       horizontal: this.horizontal,
       id: `chart-${_.uniqueId()}`,
       maxPlaces: this.maxPlaces,
+      maxVariables: this.maxVariables,
       place: {
         dcid: this.parentPlace,
         name: "",
         types: [],
       },
+      showExploreMore: this.showExploreMore,
+      showTooltipOnHover: true,
       sort: this.sort,
       stacked: this.stacked,
       statVarSpec,
@@ -210,9 +247,13 @@ export class DatacommonsBarComponent extends LitElement {
       title: this.header || this.title,
       useLollipop: this.lollipop,
       yAxisMargin: this.yAxisMargin,
+      getProcessedSVNameFn: getVariableNameProcessingFn(
+        this.variableNameRegex,
+        this.defaultVariableName
+      ),
+      placeNameProp: this.placeNameProp,
     };
-    const mountPoint = document.createElement("div");
-    ReactDOM.render(React.createElement(BarTile, barTileProps), mountPoint);
-    return mountPoint;
+
+    return createWebComponentElement(BarTile, barTileProps);
   }
 }

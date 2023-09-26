@@ -13,17 +13,96 @@
                     ],
                     "title": "GDP (Nominal Value) in Eurostat Nuts 3 Places of United Kingdom (${date})",
                     "type": "MAP"
-                  },
-                  {
-                    "statVarKey": [
-                      "Amount_EconomicActivity_GrossDomesticProduction_Nominal_pc"
-                    ],
-                    "title": "Per Capita GDP (Nominal Value) in Eurostat Nuts 3 Places of United Kingdom (${date})",
-                    "type": "MAP"
                   }
                 ]
               }
-            ]
+            ],
+            "denom": "Count_Person",
+            "title": "GDP (Nominal Value) in Eurostat Nuts 3 Places of United Kingdom"
+          },
+          {
+            "columns": [
+              {
+                "tiles": [
+                  {
+                    "statVarKey": [
+                      "Amount_EconomicActivity_GrossDomesticProduction_Nominal_PerCapita"
+                    ],
+                    "title": "Nominal GDP Per Capita in United Kingdom",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Nominal GDP Per Capita in United Kingdom",
+                    "statVarKey": [
+                      "Amount_EconomicActivity_GrossDomesticProduction_Nominal_PerCapita"
+                    ],
+                    "title": "Nominal GDP Per Capita in United Kingdom",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
+              }
+            ],
+            "title": "Nominal GDP Per Capita"
+          },
+          {
+            "columns": [
+              {
+                "tiles": [
+                  {
+                    "statVarKey": [
+                      "GrowthRate_Amount_EconomicActivity_GrossDomesticProduction"
+                    ],
+                    "title": "Growth Rate of GDP in United Kingdom",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Growth Rate of GDP in United Kingdom",
+                    "statVarKey": [
+                      "GrowthRate_Amount_EconomicActivity_GrossDomesticProduction"
+                    ],
+                    "title": "Growth Rate of GDP in United Kingdom",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
+              }
+            ],
+            "title": "Growth Rate of GDP"
+          },
+          {
+            "columns": [
+              {
+                "tiles": [
+                  {
+                    "statVarKey": [
+                      "UnemploymentRate_Person"
+                    ],
+                    "title": "Unemployment Rate in United Kingdom",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "description": "Unemployment Rate in United Kingdom",
+                    "statVarKey": [
+                      "UnemploymentRate_Person"
+                    ],
+                    "title": "Unemployment Rate in United Kingdom",
+                    "type": "HIGHLIGHT"
+                  }
+                ]
+              }
+            ],
+            "title": "Unemployment Rate"
           },
           {
             "columns": [
@@ -33,12 +112,13 @@
                     "statVarKey": [
                       "Amount_EconomicActivity_GrossDomesticProduction_Nominal_AsAFractionOf_Count_Person"
                     ],
-                    "title": "Amount of Economic Activity (Nominal): Gross Domestic Production (Per Capita) in Eurostat Nuts 3 Places of United Kingdom (${date})",
+                    "title": "Economic Activity: Nominal GDP (Nominal, Per Capita) in Eurostat Nuts 3 Places of United Kingdom (${date})",
                     "type": "MAP"
                   }
                 ]
               }
-            ]
+            ],
+            "title": "Economic Activity: Nominal GDP (Nominal, Per Capita) in Eurostat Nuts 3 Places of United Kingdom"
           }
         ],
         "statVarSpec": {
@@ -47,13 +127,20 @@
             "statVar": "Amount_EconomicActivity_GrossDomesticProduction_Nominal"
           },
           "Amount_EconomicActivity_GrossDomesticProduction_Nominal_AsAFractionOf_Count_Person": {
-            "name": "Amount of Economic Activity (Nominal): Gross Domestic Production (Per Capita)",
+            "name": "Economic Activity: Nominal GDP (Nominal, Per Capita)",
             "statVar": "Amount_EconomicActivity_GrossDomesticProduction_Nominal_AsAFractionOf_Count_Person"
           },
-          "Amount_EconomicActivity_GrossDomesticProduction_Nominal_pc": {
-            "denom": "Count_Person",
-            "name": "GDP (Nominal Value)",
-            "statVar": "Amount_EconomicActivity_GrossDomesticProduction_Nominal"
+          "Amount_EconomicActivity_GrossDomesticProduction_Nominal_PerCapita": {
+            "name": "Nominal GDP Per Capita",
+            "statVar": "Amount_EconomicActivity_GrossDomesticProduction_Nominal_PerCapita"
+          },
+          "GrowthRate_Amount_EconomicActivity_GrossDomesticProduction": {
+            "name": "Growth Rate of GDP",
+            "statVar": "GrowthRate_Amount_EconomicActivity_GrossDomesticProduction"
+          },
+          "UnemploymentRate_Person": {
+            "name": "Unemployment Rate",
+            "statVar": "UnemploymentRate_Person"
           }
         }
       }
@@ -65,22 +152,6 @@
       "placeDcid": [
         "country/GBR"
       ]
-    },
-    "suggestions": {
-      "NL_RELATED_PLACE": {},
-      "NL_RELATED_QUERY_TYPE": {
-        "items": [
-          {
-            "displayName": "Show highest",
-            "nlQuery": "GDP of counties in the United Kingdom - show highest"
-          },
-          {
-            "displayName": "Show lowest",
-            "nlQuery": "GDP of counties in the United Kingdom - show lowest"
-          }
-        ]
-      },
-      "NL_RELATED_VAR": {}
     }
   },
   "context": {},
@@ -93,5 +164,14 @@
   },
   "placeFallback": {},
   "placeSource": "CURRENT_QUERY",
-  "svSource": "CURRENT_QUERY"
+  "places": [
+    {
+      "dcid": "country/GBR",
+      "name": "United Kingdom",
+      "place_type": "Country"
+    }
+  ],
+  "relatedThings": {},
+  "svSource": "CURRENT_QUERY",
+  "userMessage": ""
 }

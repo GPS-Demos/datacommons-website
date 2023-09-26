@@ -18,6 +18,7 @@
  * A container for any tile containing a chart.
  */
 
+import _ from "lodash";
 import React, { useRef } from "react";
 
 import { ASYNC_ELEMENT_HOLDER_CLASS } from "../../constants/css_constants";
@@ -27,6 +28,7 @@ import {
   formatString,
   getChartTitle,
   getMergedSvg,
+  getSourcesJsx,
   ReplacementStrings,
 } from "../../utils/tile_utils";
 import { NlChartFeedback } from "../nl_feedback";
@@ -46,19 +48,24 @@ interface ChartTileContainerProp {
   className?: string;
   // Whether or not this is the initial loading state.
   isInitialLoading?: boolean;
-  // Url to use for the explore more button.
-  exploreMoreUrl?: string;
+  // Object used for the explore link
+  exploreLink?: { displayText: string; url: string };
+  // Whether or not there is an error message in the chart.
+  hasErrorMsg?: boolean;
+  // Text to show in footer
+  footnote?: string;
 }
 
 export function ChartTileContainer(props: ChartTileContainerProp): JSX.Element {
   const containerRef = useRef(null);
   const embedModalElement = useRef<ChartEmbed>(null);
-
   // on initial loading, hide the title text
   const title = !props.isInitialLoading
     ? getChartTitle(props.title, props.replacementStrings)
     : "";
-  const showEmbed = props.allowEmbed && !props.isInitialLoading;
+  const showSources = !_.isEmpty(props.sources) && !props.hasErrorMsg;
+  const showEmbed =
+    props.allowEmbed && !props.isInitialLoading && !props.hasErrorMsg;
   return (
     <div
       className={`chart-container ${ASYNC_ELEMENT_HOLDER_CLASS} ${
@@ -76,19 +83,23 @@ export function ChartTileContainer(props: ChartTileContainerProp): JSX.Element {
           {
             /* We want to render this header element even if title is empty
             to keep the space on the page */
-            props.title && <h4 {...{ part: "title" }}>{title}</h4>
+            props.title && <h4 {...{ part: "header" }}>{title}</h4>
           }
-          <slot name="subtitle"></slot>
+          <slot name="subheader" {...{ part: "subheader" }}></slot>
+          {showSources && getSourcesJsx(props.sources)}
         </div>
         {props.children}
       </div>
       <ChartFooter
-        sources={props.sources}
         handleEmbed={showEmbed ? handleEmbed : null}
-        exploreMoreUrl={props.exploreMoreUrl}
-      />
-      <NlChartFeedback id={props.id} />
-      {showEmbed && <ChartEmbed ref={embedModalElement} />}
+        exploreLink={props.exploreLink}
+        footnote={props.footnote}
+      >
+        <NlChartFeedback id={props.id} />
+      </ChartFooter>
+      {showEmbed && (
+        <ChartEmbed container={containerRef.current} ref={embedModalElement} />
+      )}
     </div>
   );
 

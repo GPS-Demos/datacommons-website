@@ -8,6 +8,11 @@
               {
                 "tiles": [
                   {
+                    "barTileSpec": {
+                      "maxPlaces": 15,
+                      "maxVariables": 15,
+                      "sort": "DESCENDING"
+                    },
                     "comparisonPlaces": [
                       "geoId/0644000",
                       "geoId/0666000",
@@ -25,7 +30,8 @@
                   }
                 ]
               }
-            ]
+            ],
+            "title": "Asthma"
           }
         ],
         "statVarSpec": {
@@ -41,22 +47,26 @@
       "placeDcid": [
         "geoId/0644000"
       ]
-    },
-    "suggestions": {
-      "NL_PLACE_DISAMBIGUATION": {},
-      "NL_RELATED_PLACE": {},
-      "NL_RELATED_VAR": {}
     }
   },
   "context": {},
   "debug": {},
   "pastSourceContext": "",
   "place": {
-    "dcid": "geoId/0644000",
-    "name": "Los Angeles",
-    "place_type": "City"
+    "dcid": "geoId/06",
+    "name": "California",
+    "place_type": "State"
   },
   "placeFallback": {},
   "placeSource": "CURRENT_QUERY",
-  "svSource": "CURRENT_QUERY"
+  "places": [
+    {
+      "dcid": "geoId/06",
+      "name": "California",
+      "place_type": "State"
+    }
+  ],
+  "relatedThings": {},
+  "svSource": "UNKNOWN",
+  "userMessage": ""
 }

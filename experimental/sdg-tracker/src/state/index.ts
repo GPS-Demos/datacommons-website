@@ -28,21 +28,25 @@ import {
 import React, { ReactNode } from "react";
 import styled from "styled-components";
 import countries from "../config/countries.json";
+import goalSummaries from "../config/goalSummaries.json";
+import indicatorHeadlines from "../config/indicatorText.json";
 import rootTopics from "../config/rootTopics.json";
-import { WEB_API_ENDPOINT } from "../utils/constants";
+import sidebarConfig from "../config/sidebar.json";
+import targetText from "../config/targetText.json";
+import {
+  EARTH_COUNTRIES,
+  EARTH_PLACE_DCID,
+  WEB_API_ENDPOINT,
+} from "../utils/constants";
 import DataCommonsClient from "../utils/DataCommonsClient";
-import { FulfillResponse } from "../utils/types";
+import {
+  BulkObservationExistenceRequest,
+  FulfillResponse,
+} from "../utils/types";
 
-const dataCommonsClient = new DataCommonsClient({
+export const dataCommonsClient = new DataCommonsClient({
   apiRoot: WEB_API_ENDPOINT,
 });
-
-/**
- * Regex for matching SDG variable group names
- * By convention, these names start with a number and end with a ":"
- * Examples: "1:", "1.1.1:", "8.1:"
- */
-const sdgNameRegex = /^(\d\.?[^:]*)\:/;
 
 const MenuImageIcon = styled.img`
   width: 2rem;
@@ -51,9 +55,44 @@ const MenuImageIcon = styled.img`
   border-radius: 0.25rem;
 `;
 
+const REGION_PLACE_TYPES = ["UNGeoRegion", "ContinentalUnion", "Continent"];
+
 export interface Place {
   name: string;
   dcid: string;
+}
+
+/**
+ * Summary text to accompany each goal
+ */
+export interface GoalText {
+  key: string;
+  headlines: string[];
+  image?: string;
+}
+
+/**
+ * Text to accompany each target
+ */
+export interface TargetText {
+  [key: string]: string;
+}
+
+/**
+ * Headlines and links for each indicator
+ */
+export interface IndicatorTags {
+  headline: string;
+  link: string;
+  images: string[];
+}
+
+/**
+ * Text to accompany each indicator
+ */
+export interface IndicatorText {
+  key: string;
+  tags: IndicatorTags;
 }
 
 /**
@@ -65,55 +104,29 @@ export interface RootTopic {
   groupDcid: string;
   topicDcid: string;
   iconUrl: string;
+  homePageIcon: string;
+  color: string;
 }
 
 /**
- * Statistical variable grouping
+ * Data commons topic
  */
-export interface VariableGroup {
-  dcid: string;
+export interface Topic {
   name: string;
-  childGroupDcids: string[];
-  childVariableDcids: string[];
-  parentGroupDcids: string[];
-  decendentVariableCount: string[];
-}
-
-/**
- * Statistical variable
- */
-export interface Variable {
   dcid: string;
-  name: string;
-  searchNames: string[];
-  parentGroupDcids: string[];
-  definition: string;
+  parentDcids: string[];
 }
 
 /**
  * MenuItem type for holding variable egroups
  */
 
-interface MenuItemType {
+export interface MenuItemType {
   key: string;
   label: string;
   icon?: ReactNode;
   children?: MenuItemType[];
   parents: string[];
-}
-
-/**
- * Definition of /config/variables.json
- */
-export interface SdgConfig {
-  variablesById: {
-    [dcid: string]: Variable;
-  };
-  variableIds: string[];
-  variableGroupsById: {
-    [dcid: string]: VariableGroup;
-  };
-  variableGroupIds: string[];
 }
 
 export interface AppModel {
@@ -129,24 +142,33 @@ export interface AppModel {
     };
     dcids: string[];
   };
-  // Normalized store of NL queries and contexts
-  variables: {
+  topics: {
     byDcid: {
-      [dcid: string]: Variable;
+      [dcid: string]: Topic;
     };
   };
-  variableGroups: {
-    byDcid: {
-      [dcid: string]: VariableGroup;
-    };
-  };
+  // Cache responses from /fulfill endpoint
   fulfillments: {
     byId: {
       [key: string]: FulfillResponse;
     };
   };
-  variableGroupHierarchy: MenuItemType[];
+  sidebarMenuHierarchy: MenuItemType[];
   rootTopics: RootTopic[];
+  allTopicDcids: string[];
+  goalSummaries: {
+    byGoal: {
+      [key: string]: GoalText;
+    };
+  };
+  targetText: {
+    byTarget: TargetText;
+  };
+  indicatorHeadlines: {
+    byIndicator: {
+      [key: string]: IndicatorTags;
+    };
+  };
 }
 
 /**
@@ -154,12 +176,15 @@ export interface AppModel {
  */
 export interface AppActions {
   // Actions (these manipulate state directly)
-  setVariables: Action<AppModel, Variable[]>;
-  setVariableGroups: Action<AppModel, VariableGroup[]>;
+  setTopics: Action<AppModel, Topic[]>;
+  setAllTopicDcids: Action<AppModel, string[]>;
   setRootTopics: Action<AppModel, RootTopic[]>;
-  setVariableGroupHierarchy: Action<AppModel, MenuItemType[]>;
+  setSidebarMenuHierarchy: Action<AppModel, MenuItemType[]>;
   setCountries: Action<AppModel, Place[]>;
   setRegions: Action<AppModel, Place[]>;
+  setGoalSummaries: Action<AppModel, GoalText[]>;
+  setTargetText: Action<AppModel, TargetText>;
+  setIndicatorHeadlines: Action<AppModel, IndicatorText[]>;
   setFulfillment: Action<
     AppModel,
     { key: string; fulfillment: FulfillResponse }
@@ -176,19 +201,15 @@ export interface AppActions {
       variableDcids: string[];
     }
   >;
-  initializeAppState: Thunk<AppActions>;
-  initializeSdgHierarchy: Thunk<
+  fetchPlaceSidebarMenuHierarchy: Thunk<
     AppActions,
     {
-      rootTopics: RootTopic[];
-      variableGroupsByDcid: {
-        [dcid: string]: VariableGroup;
-      };
-      variablesByDcid: {
-        [dcid: string]: Variable;
-      };
+      placeDcid: string;
+      allTopicDcids: string[];
+      sidebarMenuHierarchy: MenuItemType[];
     }
   >;
+  initializeAppState: Thunk<AppActions>;
 }
 
 /**
@@ -203,17 +224,24 @@ const appModel: AppModel = {
     byDcid: {},
     dcids: [],
   },
-  variables: {
-    byDcid: {},
-  },
-  variableGroups: {
+  topics: {
     byDcid: {},
   },
   fulfillments: {
     byId: {},
   },
   rootTopics: [],
-  variableGroupHierarchy: [],
+  allTopicDcids: [],
+  sidebarMenuHierarchy: [],
+  goalSummaries: {
+    byGoal: {},
+  },
+  targetText: {
+    byTarget: {},
+  },
+  indicatorHeadlines: {
+    byIndicator: {},
+  },
 };
 
 /**
@@ -221,26 +249,41 @@ const appModel: AppModel = {
  */
 const appActions: AppActions = {
   initializeAppState: thunk(async (actions) => {
-    const response = await fetch("/config/variables.json");
-    const sdgConfig = (await response.json()) as SdgConfig;
-    actions.setVariables(
-      sdgConfig.variableIds.map((dcid) => sdgConfig.variablesById[dcid])
-    );
-    actions.setVariableGroups(
-      sdgConfig.variableGroupIds.map(
-        (dcid) => sdgConfig.variableGroupsById[dcid]
-      )
-    );
     actions.setRootTopics(rootTopics);
-    actions.setRegions(countries.regions);
+    const regions = await dataCommonsClient.getPlaces(REGION_PLACE_TYPES);
+    actions.setRegions(regions);
     actions.setCountries(
       countries.countries.filter((c) => c.is_un_member_or_observer)
     );
-    await actions.initializeSdgHierarchy({
-      rootTopics,
-      variableGroupsByDcid: sdgConfig.variableGroupsById,
-      variablesByDcid: sdgConfig.variablesById,
-    });
+    actions.setSidebarMenuHierarchy(
+      sidebarConfig.map((item) => ({
+        ...item,
+        icon: React.createElement(MenuImageIcon, {
+          src: item.icon,
+        }),
+      }))
+    );
+    actions.setGoalSummaries(goalSummaries);
+    actions.setIndicatorHeadlines(indicatorHeadlines);
+    actions.setTargetText(targetText);
+    const topics: Topic[] = [];
+    const allTopicDcids: string[] = [];
+    const traverseTopics = (item: MenuItemType) => {
+      if (!item.key.startsWith("dc")) {
+        return;
+      }
+      topics.push({
+        dcid: item.key,
+        name: item.label,
+        parentDcids: item.parents,
+      });
+      allTopicDcids.push(item.key.replace("summary-", ""));
+      item.children &&
+        item.children.forEach((childItem) => traverseTopics(childItem));
+    };
+    sidebarConfig.forEach((item) => traverseTopics(item));
+    actions.setTopics(topics);
+    actions.setAllTopicDcids(allTopicDcids);
   }),
 
   fetchTopicFulfillment: thunk(
@@ -267,102 +310,72 @@ const appActions: AppActions = {
       return fulfillment;
     }
   ),
-  initializeSdgHierarchy: thunk(
-    async (actions, { rootTopics, variableGroupsByDcid, variablesByDcid }) => {
-      const traverse = (
-        variableGroupDcid: string,
-        parents: string[],
-        summaryLevel?: string,
-        iconUrl?: string
-      ): any => {
-        const variableGroup = variableGroupsByDcid[variableGroupDcid];
 
-        const nextSummaryLevel = summaryLevel?.startsWith("Explore Goal")
-          ? "Explore Target"
-          : undefined;
-        // We only want to include SDG goals and sub-goals in the hierarchy,
-        // so filter variables & groups beyond that
-        const children: MenuItemType[] = [
-          ...variableGroup.childGroupDcids
-            .filter((g) => sdgNameRegex.test(variableGroupsByDcid[g].name))
-            .map((g) => {
-              const vairableGroupNumber =
-                variableGroupsByDcid[g].name.split(":")[0];
-              return traverse(
-                g,
-                [g, ...parents],
-                nextSummaryLevel
-                  ? `${nextSummaryLevel} ${vairableGroupNumber}`
-                  : undefined
-              );
-            }),
-          ...variableGroup.childVariableDcids
-            .map((variableDcid) => ({
-              key: variableDcid,
-              label: variablesByDcid[variableDcid].name,
-            }))
-            .filter((obj) => sdgNameRegex.test(obj.label)),
-        ];
-        // Custom sort for SDG names.
-        // Avoids incorrect lexicographical sort orders like  "17.10, 17.11, 17.1, 17.2"
-        children.sort((a, b) => {
-          const aMatch = a.label.match(sdgNameRegex);
-          const bMatch = b.label.match(sdgNameRegex);
-          if (aMatch && bMatch) {
-            const aParts = aMatch[1].split(".");
-            const bParts = bMatch[1].split(".");
-            for (let i = 0; i < aParts.length; i++) {
-              if (i === bParts.length) {
-                return -1;
-              }
-              if (aParts[i] !== bParts[i]) {
-                aParts[i].localeCompare(bParts[i]);
-                return Number(aParts[i]) - Number(bParts[i]);
-              }
-            }
-          }
-          return a.label.localeCompare(b.label);
-        });
-        if (summaryLevel) {
-          children.unshift({
-            key: `summary-${variableGroup.dcid}`,
-            label: `${summaryLevel}`,
-            parents,
-          });
+  fetchPlaceSidebarMenuHierarchy: thunk(
+    async (_, { placeDcid, allTopicDcids, sidebarMenuHierarchy }) => {
+      if (!allTopicDcids || allTopicDcids.length === 0) {
+        return [];
+      }
+      if (!placeDcid || placeDcid.length === 0) {
+        placeDcid = EARTH_PLACE_DCID;
+      }
+
+      try {
+        // check existence for the place.
+        let placeDcids: string[] = [placeDcid];
+        if (placeDcid === EARTH_PLACE_DCID) {
+          // For Earth, add select countries as well.
+          placeDcids.push(...EARTH_COUNTRIES);
+        } else if (!placeDcid.startsWith("country")) {
+          // For regions, fetch countries in the region.
+          const countryDcids = await dataCommonsClient.getCountriesInRegion(
+            placeDcid
+          );
+          placeDcids.push(...countryDcids);
         }
 
-        const item: MenuItemType = {
-          children: children.length > 0 ? children : undefined,
-          icon: iconUrl
-            ? React.createElement(MenuImageIcon, {
-                src: iconUrl,
-              })
-            : undefined,
-          key: variableGroupDcid,
-          label: variableGroup.name,
-          parents,
+        const request: BulkObservationExistenceRequest = {
+          entities: placeDcids,
+          variables: allTopicDcids,
         };
-        return item;
-      };
-      const items = rootTopics.map((rootTopic, i) =>
-        traverse(
-          rootTopic.groupDcid,
-          [rootTopic.groupDcid],
-          `Explore Goal ${i + 1}`,
-          rootTopic.iconUrl
-        )
-      );
-      const rootItem: MenuItemType = {
-        key: "dc/g/SDG",
-        label: "All Goals",
-        icon: React.createElement(MenuImageIcon, {
-          src: "/images/sdg-wheel-transparent.png",
-        }),
-        parents: [],
-      };
-      actions.setVariableGroupHierarchy([rootItem, ...items]);
+        const response = await dataCommonsClient.existence(request);
+
+        const existingTopicDcids = new Set<string>();
+        for (const topicDcid in response) {
+          const exists = response[topicDcid];
+          for (const key in exists) {
+            if (exists[key]) {
+              existingTopicDcids.add(topicDcid);
+              break;
+            }
+          }
+        }
+
+        const filterItems = (items: MenuItemType[]) => {
+          const filtered: MenuItemType[] = [];
+
+          items.forEach((item) => {
+            const topicDcid = item.key.startsWith("summary-")
+              ? item.key.substring("summary-".length)
+              : item.key;
+            if (existingTopicDcids.has(topicDcid)) {
+              item = { ...item };
+              item.children = filterItems(item.children || []);
+              filtered.push(item);
+            }
+          });
+
+          return filtered;
+        };
+
+        return filterItems(sidebarMenuHierarchy);
+      } catch (e) {
+        console.error(e);
+        return sidebarMenuHierarchy;
+      }
     }
   ),
+
   setCountries: action((state, countries) => {
     state.countries.byDcid = {};
     state.countries.dcids = [];
@@ -379,24 +392,38 @@ const appActions: AppActions = {
       state.regions.dcids.push(region.dcid);
     });
   }),
-  setVariables: action((state, variables) => {
-    variables.forEach((v) => {
-      state.variables.byDcid[v.dcid] = v;
-    });
-  }),
-  setVariableGroups: action((state, variableGroups) => {
-    variableGroups.forEach((v) => {
-      state.variableGroups.byDcid[v.dcid] = v;
+  setTopics: action((state, topics) => {
+    state.topics.byDcid = {};
+    topics.forEach((t) => {
+      state.topics.byDcid[t.dcid] = t;
     });
   }),
   setRootTopics: action((state, rootTopics) => {
     state.rootTopics = [...rootTopics];
   }),
-  setVariableGroupHierarchy: action((state, items) => {
-    state.variableGroupHierarchy = [...items];
+  setAllTopicDcids: action((state, topicDcids) => {
+    state.allTopicDcids = [...topicDcids];
+  }),
+  setSidebarMenuHierarchy: action((state, items) => {
+    state.sidebarMenuHierarchy = [...items];
   }),
   setFulfillment: action((state, { key, fulfillment }) => {
     state.fulfillments.byId[key] = { ...fulfillment };
+  }),
+  setGoalSummaries: action((state, goalSummaries) => {
+    state.goalSummaries.byGoal = {};
+    goalSummaries.forEach((goal) => {
+      state.goalSummaries.byGoal[goal.key] = goal;
+    });
+  }),
+  setTargetText: action((state, targetText) => {
+    state.targetText.byTarget = targetText;
+  }),
+  setIndicatorHeadlines: action((state, indicatorHeadlines) => {
+    state.indicatorHeadlines.byIndicator = {};
+    indicatorHeadlines.forEach((indicator) => {
+      state.indicatorHeadlines.byIndicator[indicator.key] = indicator.tags;
+    });
   }),
 };
 

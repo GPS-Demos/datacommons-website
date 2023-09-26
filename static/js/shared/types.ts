@@ -86,6 +86,7 @@ export interface StatVarGroupNodeType {
   parent?: string;
   childStatVarGroups?: Array<{ id: string; specializedEntity: string }>;
   childStatVars?: StatVarNodeType[];
+  descendentStatVarCount?: number;
 }
 
 export interface StatVarNodeType {
@@ -200,6 +201,12 @@ export interface StatVarSpec {
   log: boolean;
   name?: string;
   date?: string;
+  // Whether to block setting the denominator to "per capita".
+  // Used in subject pages for variables where dividing by population does
+  // not make sense.
+  // Set to "true" to block toggling per capita in subject pages.
+  noPerCapita?: boolean;
+  facetId?: string;
 }
 
 export interface SampleDates {

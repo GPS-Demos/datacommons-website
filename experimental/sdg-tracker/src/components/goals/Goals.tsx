@@ -15,26 +15,29 @@
  */
 
 import { Layout } from "antd";
-import React, { useCallback } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import React, { useCallback, useMemo } from "react";
+import { useHistory, useLocation } from "react-router-dom";
 import {
+  EARTH_PLACE_DCID,
   QUERY_PARAM_VARIABLE,
-  ROOT_SDG_VARIABLE_GROUP,
+  ROOT_TOPIC,
 } from "../../utils/constants";
 import CountriesContent from "../countries/CountriesContent";
-import AppFooter from "../layout/AppFooter";
-import AppHeader from "../layout/AppHeader";
-import AppLayout from "../layout/AppLayout";
-import AppLayoutContent from "../layout/AppLayoutContent";
-import AppSidebar from "../layout/AppSidebar";
+import AppFooter from "../shared/AppFooter";
+import AppHeader from "../shared/AppHeader";
+import AppLayout from "../shared/AppLayout";
+import AppLayoutContent from "../shared/AppLayoutContent";
+import AppSidebar from "../shared/AppSidebar";
 
-const EARTH_PLACE_DCID = "Earth";
 const Goals: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const location = useLocation();
-  const variableDcid =
-    searchParams.get(QUERY_PARAM_VARIABLE) || ROOT_SDG_VARIABLE_GROUP;
+  const history = useHistory();
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
+
+  const variableDcid = searchParams.get(QUERY_PARAM_VARIABLE) || ROOT_TOPIC;
 
   /**
    * Update selected variable URL parameter
@@ -43,7 +46,7 @@ const Goals: React.FC = () => {
     (variableDcid: string) => {
       const searchParams = new URLSearchParams(location.search);
       searchParams.set(QUERY_PARAM_VARIABLE, variableDcid);
-      navigate(location.pathname + "?" + searchParams.toString());
+      history.push(location.pathname + "?" + searchParams.toString());
     },
     [location]
   );
@@ -54,14 +57,15 @@ const Goals: React.FC = () => {
       <AppLayoutContent style={{ display: "flex", flexDirection: "column" }}>
         <Layout style={{ height: "100%", flexGrow: 1, flexDirection: "row" }}>
           <AppSidebar
+            placeDcid=""
             variableDcid={variableDcid}
             setVariableDcid={setVariableDcid}
           />
           <Layout style={{ overflow: "auto" }}>
             <CountriesContent
               hidePlaceSearch={true}
-              variableDcid={variableDcid}
-              placeDcid={EARTH_PLACE_DCID}
+              variableDcids={[variableDcid]}
+              placeDcids={[EARTH_PLACE_DCID]}
               setPlaceDcid={() => {}}
             />
           </Layout>

@@ -96,6 +96,10 @@ message StatVarSpec {
   // [Optional] The date to use when getting data for the stat var. Will use the
   // latest date if not set. Only enabled in map, ranking, and scatter tiles.
   string date = 7;
+  // [Optional] Whether to prevent this variable from being shown per capita. 
+  bool no_per_capita = 8;
+  // [Optional] If set, only get data from facet with this id.
+  string facet_id = 9;
 }
 
 // This ranks across child places for a single stat var.
@@ -182,15 +186,17 @@ message BarTileSpec {
   bool horizontal = 4;
   // maximum number of places to display
   int32 max_places = 5;
+  // maximum number of variables to display
+  int32 max_variables = 6;
   // bar sort order
   // default: SORT_DESCENDING_POPULATION
-  SortType sort = 6;
+  SortType sort = 7;
   // whether to stack bars instead of grouping them
-  bool stacked = 7;
+  bool stacked = 8;
   // whether to draw lollipops instead of bars
-  bool use_lollipop = 8;
+  bool use_lollipop = 9;
   // y-axis margin
-  double y_axis_margin = 9;
+  double y_axis_margin = 10;
 }
 
 message GaugeTileSpec {
@@ -268,7 +274,7 @@ message Tile {
   // Key for a StatVarSpec defined in the containing Category
   repeated string stat_var_key = 4;
   // [optional] a list of place dcids used for this tile. Can also be "self" to
-  // use the main place id of the page. Only used for BAR tiles.
+  // use the main place id of the page. Only used for BAR and LINE tiles.
   repeated string comparison_places = 7;
   // [optional] If set, used instead of main place for the page.
   string place_dcid_override = 11;
@@ -285,6 +291,22 @@ message Tile {
     DonutTileSpec donut_tile_spec = 14;
     LineTileSpec line_tile_spec = 15;
     MapTileSpec map_tile_spec = 16;
+  }
+}
+
+message DisasterBlockSpec {
+  enum DateRange {
+    TYPE_NONE = 0;
+    THIRTY_DAYS = 1;
+    SIX_MONTHS = 2;
+    ONE_YEAR = 3;
+    THREE_YEARS = 4;
+  }
+  // [optional] If set, use as default date. Otherwise, default date is
+  // THREE_YEARS for all places except for Earth, which defaults to ONE_YEAR.
+  oneof default_date {
+    DateRange date_range = 1;
+    string date = 2;
   }
 }
 
@@ -316,6 +338,10 @@ message Block {
   // Whether or not the block should use the denom when first rendered. Only
   // used if denom is set. Defaults to false.
   bool start_with_denom = 7;
+  // specs for specific block types
+  oneof block_type_spec {
+    DisasterBlockSpec disaster_block_spec = 8;
+  }
 }
 
 message Category {
@@ -329,40 +355,8 @@ message Category {
   string dcid = 5;
 }
 
-message Suggestion {
-  enum Type {
-    // [crime in NY]
-    //    "Did you mean New York State?"
-    NL_PLACE_DISAMBIGUATION = 0;
-
-    // [asthma in sunnyvale]
-    //    "See results for Mountain View"
-    NL_RELATED_PLACE = 1;
-
-    // [women earnings in california]
-    //   "See results for Male Earnings"
-    //   "Compare with Male Earnings?"
-    NL_RELATED_VAR = 2;
-
-    // [women earnings in california counties]
-    //   "See ranking among the counties"
-    // [number of schools in california]
-    //   "See california schools per capita"
-    NL_RELATED_QUERY_TYPE = 3;
-  }
-
-  message Item {
-    string display_name = 1;
-    string nl_query = 2;
-  }
-  repeated Item items = 1;
-}
-
 message SubjectPageConfig {
   PageMetadata metadata = 1;
   repeated Category categories = 2;
-
-  // Various suggestions to present to the user. Currently used for NL.
-  // Keyed by Suggestion::Type (keys have to be strings).
-  map<string, Suggestion> suggestions = 3;
+  reserved 3;
 }

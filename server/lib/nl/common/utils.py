@@ -18,14 +18,15 @@ import datetime
 import logging
 import random
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 import server.lib.fetch as fetch
 import server.lib.nl.common.constants as constants
 import server.lib.nl.common.counters as ctr
 import server.lib.nl.common.utterance as nl_uttr
+from server.lib.nl.detection.types import ClassificationType
 import server.lib.nl.detection.types as types
-import server.lib.nl.fulfillment.context as ctx
+import server.lib.nl.fulfillment.utils as futils
 import shared.lib.constants as shared_constants
 
 # TODO: Consider tweaking/reducing this
@@ -48,7 +49,7 @@ def is_sv(sv):
   return not (is_topic(sv) or is_svg(sv))
 
 
-# Checks if there is an event in the last 1 year.
+# Checks if there is an event in the last 3 years.
 def event_existence_for_place(place: str, event: types.EventType,
                               counters: ctr.Counters) -> bool:
   for event_type in constants.EVENT_TYPE_TO_DC_TYPES[event]:
@@ -59,11 +60,14 @@ def event_existence_for_place(place: str, event: types.EventType,
     counters.timeit('event_existence_for_place', start)
     cur_year = datetime.datetime.now().year
     prev_year = str(cur_year - 1)
+    two_years = str(cur_year - 2)
+    three_years = str(cur_year - 3)
     cur_year = str(cur_year)
     # A crude recency check
     for date in date_list:
-      if date.startswith(cur_year) or date.startswith(prev_year):
-        return True
+      for year in [cur_year, prev_year, two_years, three_years]:
+        if date.startswith(year):
+          return True
   return False
 
 
@@ -110,18 +114,18 @@ def sv_existence_for_places_check_single_point(
     return {}, {}
 
   start = time.time()
-  series_data = fetch.series_core(entities=places,
-                                  variables=svs,
-                                  all_facets=False)
+  series_facet = fetch.series_facet(entities=places,
+                                    variables=svs,
+                                    all_facets=False)
   counters.timeit('sv_existence_for_places_check_single_point', start)
 
   existing_svs = {}
   existsv2places = {}
-  for sv, sv_data in series_data.get('data', {}).items():
+  for sv, sv_data in series_facet.get('data', {}).items():
     for pl, place_data in sv_data.items():
       if not place_data.get('series'):
         continue
-      num_series = len(place_data['series'])
+      num_series = place_data['series'][0]["value"]
       existing_svs[sv] = existing_svs.get(sv, False) | (num_series == 1)
       if sv not in existsv2places:
         existsv2places[sv] = {}
@@ -221,13 +225,29 @@ def parent_place_names(dcid: str) -> List[str]:
   return None
 
 
+# Returns a list of parent place names for a dcid.
+def get_un_labels(dcids: List[str]) -> Dict[str, str]:
+  resp = fetch.property_values(nodes=dcids, prop='unDataLabel')
+  return {p: vals[0] for p, vals in resp.items() if vals}
+
+
+def trim_classifications(
+    classifications: List[types.NLClassifier],
+    to_trim: Set[types.ClassificationType]) -> List[types.NLClassifier]:
+  ret = []
+  for c in classifications:
+    if c.type not in to_trim:
+      ret.append(c)
+  return ret
+
+
 def get_contained_in_type(
     uttr_or_classifications: Any) -> types.ContainedInPlaceType:
   if isinstance(uttr_or_classifications, nl_uttr.Utterance):
-    classification = ctx.classifications_of_type_from_utterance(
+    classification = futils.classifications_of_type_from_utterance(
         uttr_or_classifications, types.ClassificationType.CONTAINED_IN)
   else:
-    classification = ctx.classifications_of_type(
+    classification = futils.classifications_of_type(
         uttr_or_classifications, types.ClassificationType.CONTAINED_IN)
   place_type = None
   if (classification and isinstance(classification[0].attributes,
@@ -237,19 +257,19 @@ def get_contained_in_type(
   return place_type
 
 
-def get_size_types(uttr: nl_uttr.Utterance) -> List[types.SizeType]:
-  classification = ctx.classifications_of_type_from_utterance(
-      uttr, types.ClassificationType.SIZE_TYPE)
-  size_types = []
+def get_superlatives(uttr: nl_uttr.Utterance) -> List[types.SuperlativeType]:
+  classification = futils.classifications_of_type_from_utterance(
+      uttr, types.ClassificationType.SUPERLATIVE)
+  superlatives = []
   if (classification and isinstance(classification[0].attributes,
-                                    types.SizeTypeClassificationAttributes)):
+                                    types.SuperlativeClassificationAttributes)):
     # Ranking among places.
-    size_types = classification[0].attributes.size_types
-  return size_types
+    superlatives = classification[0].attributes.superlatives
+  return superlatives
 
 
 def get_ranking_types(uttr: nl_uttr.Utterance) -> List[types.RankingType]:
-  classification = ctx.classifications_of_type_from_utterance(
+  classification = futils.classifications_of_type_from_utterance(
       uttr, types.ClassificationType.RANKING)
   ranking_types = []
   if (classification and isinstance(classification[0].attributes,
@@ -261,7 +281,7 @@ def get_ranking_types(uttr: nl_uttr.Utterance) -> List[types.RankingType]:
 
 def get_quantity(
     uttr: nl_uttr.Utterance) -> types.QuantityClassificationAttributes:
-  classification = ctx.classifications_of_type_from_utterance(
+  classification = futils.classifications_of_type_from_utterance(
       uttr, types.ClassificationType.QUANTITY)
   if (classification and isinstance(classification[0].attributes,
                                     types.QuantityClassificationAttributes)):
@@ -270,7 +290,7 @@ def get_quantity(
 
 
 def get_time_delta_types(uttr: nl_uttr.Utterance) -> List[types.TimeDeltaType]:
-  classification = ctx.classifications_of_type_from_utterance(
+  classification = futils.classifications_of_type_from_utterance(
       uttr, types.ClassificationType.TIME_DELTA)
   time_delta = []
   # Get time delta type
@@ -280,29 +300,40 @@ def get_time_delta_types(uttr: nl_uttr.Utterance) -> List[types.TimeDeltaType]:
   return time_delta
 
 
+def get_event_types(uttr: nl_uttr.Utterance) -> List[types.EventType]:
+  classification = futils.classifications_of_type_from_utterance(
+      uttr, types.ClassificationType.EVENT)
+  event_types = []
+  # Get time delta type
+  if (classification and isinstance(classification[0].attributes,
+                                    types.EventClassificationAttributes) and
+      not classification[0].attributes.event_types):
+    event_types = classification[0].attributes.event_types
+  return event_types
+
+
 def pluralize_place_type(place_type: str) -> str:
   result = shared_constants.PLACE_TYPE_TO_PLURALS.get(
       place_type.lower(), shared_constants.PLACE_TYPE_TO_PLURALS["place"])
   return result.title()
 
 
-def has_map(place_type: any, places: List[types.Place]) -> bool:
+def has_map(place_type: any, place: types.Place) -> bool:
   if isinstance(place_type, str):
     place_type = types.ContainedInPlaceType(place_type)
   if place_type == types.ContainedInPlaceType.COUNTRY:
-    return True
-
-  if not places:
+    if place.dcid in constants.MAP_ONLY_SUPER_NATIONAL_GEOS:
+      return True
     return False
 
   aatype = constants.ADMIN_DIVISION_EQUIVALENTS.get(place_type, None)
-  if aatype and places[0].country in constants.ADMIN_AREA_MAP_COUNTRIES:
+  if aatype and place.country and place.country in constants.ADMIN_AREA_MAP_COUNTRIES:
     return True
 
   # If the parent place is in USA, check that the child type +
   # parent type combination supports map.
-  if (places[0].country == constants.USA.dcid and
-      places[0].place_type in constants.USA_ONLY_MAP_TYPES.get(place_type, [])):
+  if (place.country == constants.USA.dcid and
+      place.place_type in constants.USA_ONLY_MAP_TYPES.get(place_type, [])):
     return True
 
   return False
@@ -324,16 +355,20 @@ def new_session_id(app: str) -> str:
 
 def get_time_delta_title(direction: types.TimeDeltaType,
                          is_absolute: bool) -> str:
+  if direction == types.TimeDeltaType.INCREASE:
+    prefix = 'Increase'
+  elif direction == types.TimeDeltaType.DECREASE:
+    prefix = 'Decrease'
+  else:
+    prefix = 'Change'
   return ' '.join([
-      'Increase' if direction == types.TimeDeltaType.INCREASE else 'Decrease',
-      'over time',
+      prefix, 'over time',
       '(by absolute change)' if is_absolute else '(by percent change)'
   ])
 
 
-def get_default_child_place_type(place: types.Place,
-                                 is_nl: bool = True
-                                ) -> types.ContainedInPlaceType:
+def get_default_child_place_type(
+    place: types.Place,) -> types.ContainedInPlaceType:
   if place.dcid == constants.EARTH_DCID:
     return types.ContainedInPlaceType.COUNTRY
   # Canonicalize the type.
@@ -343,15 +378,6 @@ def get_default_child_place_type(place: types.Place,
   if ptype:
     ptype = admin_area_equiv_for_place(ptype, place)
 
-    if is_nl and place.dcid == constants.USA.dcid:
-      # NL has fallback, so if for country we preferred AA1, downgrade
-      # to AA2 since if data doesn't exist it will fallback to AA1.
-      ptype = types.ContainedInPlaceType.COUNTY
-
-  # TODO: Since most queries/data tends to be US specific and we have
-  # maps for it, we pick County as default, but reconsider in future.
-  if not ptype:
-    ptype = types.ContainedInPlaceType.COUNTY
   return ptype
 
 
@@ -407,7 +433,7 @@ def is_place_type_match_for_fallback(pt1: types.ContainedInPlaceType,
 # corresponding to the country that the place is located in.
 def admin_area_equiv_for_place(
     place_type: types.ContainedInPlaceType,
-    place: types.Place) -> types.ClassificationAttributes:
+    place: types.Place) -> types.ContainedInPlaceType:
   # Convert to AA equivalent
   ptype = constants.ADMIN_DIVISION_EQUIVALENTS.get(place_type, None)
   # Not an admin-equivalent type
@@ -440,3 +466,16 @@ def to_dict(data):
     return data
   else:
     return data
+
+
+def get_comparison_or_correlation(
+    uttr: nl_uttr.Utterance) -> ClassificationType:
+  for cl in uttr.classifications:
+    if cl.type in [
+        ClassificationType.COMPARISON, ClassificationType.CORRELATION
+    ]:
+      return cl.type
+  # Mimic NL behavior when there are multiple places.
+  if len(uttr.places) > 1:
+    return ClassificationType.COMPARISON
+  return None

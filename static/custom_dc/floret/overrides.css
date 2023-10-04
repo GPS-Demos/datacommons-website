@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2022 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,29 @@
  * limitations under the License.
  */
 
-:root {
-  --palo-alto: #175E54;
-  --palo-alto-dark: #014240;
-  --palo-alto-light: #7fa2a2;
+#main-nav .navbar-brand a {
+  color: #f5f5f5;
+  text-decoration: none;
 }
 
-#main-header {
-  background-color: var(--palo-alto-dark);
-
-  .navbar-brand a {
-    color: #fff;
-  }
-
-  .nav-item .nav-link,
-  #main-nav .navbar-brand .sep {
-    color: rgba(255,255,255,.5)
-  }
+#main-nav .nav-item a.nav-link {
+  color: #f5f5f5;
 }
-
-.brand-byline span {
-  display: flex;
-  flex-direction: row;
-  margin-left: 0.5rem;
-  gap: 4px;
+datacommons-bar::part(container),
+datacommons-map::part(container),
+datacommons-ranking::part(container),
+datacommons-scatter::part(container) {
+  background: white;
+}
+.section {
+  margin: 6rem 0;
+}
+.section.odd {
+  padding: 6rem 0;
+  background: #fafafa;
+}
+.section h2 {
+  margin-bottom: 3rem;
+  font-weight: 300;
+  text-align: center;
 }

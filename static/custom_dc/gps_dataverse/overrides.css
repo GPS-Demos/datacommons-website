@@ -36,6 +36,10 @@ body {
   margin: -5px 10px -5px 0;
 }
 
+#main-header .navbar-brand a {
+  margin-right: 10px;
+}
+
 #main-nav a {
   color: var(--dc-primary) !important;
 }

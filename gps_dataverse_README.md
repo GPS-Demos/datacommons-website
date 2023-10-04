@@ -5,6 +5,14 @@
 ```bash
 export MIXER_API_KEY=<mixer-api-key>
 export MAPS_API_KEY=<maps-api-key>
+./run_server.sh -e gps_dataverse
+```
+
+# Building an Image
+
+```bash
+export MIXER_API_KEY=<mixer-api-key>
+export MAPS_API_KEY=<maps-api-key>
 
 export PROJECT=gps-dataverse
 export SERVICE=datacommons-website
